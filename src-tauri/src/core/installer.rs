@@ -47,7 +47,7 @@ pub fn install_local_skill<R: tauri::Runtime>(
     let central_path = central_dir.join(&name);
 
     if central_path.exists() {
-        anyhow::bail!("skill already exists in central repo: {:?}", central_path);
+        anyhow::bail!("SKILL_NAME_CONFLICT|{}", name);
     }
 
     copy_dir_recursive(source_path, &central_path)
@@ -109,7 +109,7 @@ pub fn install_git_skill<R: tauri::Runtime>(
     let mut central_path = central_dir.join(&name);
 
     if central_path.exists() {
-        anyhow::bail!("skill already exists in central repo: {:?}", central_path);
+        anyhow::bail!("SKILL_NAME_CONFLICT|{}", name);
     }
 
     // Fast path: for GitHub URLs with a subpath, download via API instead of cloning.
@@ -906,7 +906,7 @@ pub fn install_git_skill_from_selection<R: tauri::Runtime>(
     ensure_central_repo(&central_dir)?;
     let mut central_path = central_dir.join(&display_name);
     if central_path.exists() {
-        anyhow::bail!("skill already exists in central repo: {:?}", central_path);
+        anyhow::bail!("SKILL_NAME_CONFLICT|{}", display_name);
     }
 
     let (repo_dir, revision) = clone_to_cache(

@@ -114,16 +114,9 @@ function App() {
       if (raw.includes('CANCELLED|')) {
         return '' // Silently ignore cancelled operations
       }
-      if (raw.includes('skill already exists in central repo')) {
-        // Extract skill name from path like: skill already exists in central repo: "/path/to/react-best-practices"
-        const pathMatch = raw.match(/central repo:\s*"?([^"]+)"?/)
-        if (pathMatch) {
-          const skillName = pathMatch[1].split('/').pop() ?? ''
-          if (skillName) {
-            return t('errors.skillExistsInHubNamed', { name: skillName })
-          }
-        }
-        return t('errors.skillExistsInHub')
+      if (raw.startsWith('SKILL_NAME_CONFLICT|')) {
+        const name = raw.split('|')[1] ?? ''
+        return t('errors.skillExistsInHubNamed', { name })
       }
       if (raw.startsWith('TARGET_EXISTS|')) {
         return t('errors.targetExists')
@@ -161,6 +154,19 @@ function App() {
     (name: string) =>
       managedSkills.some((skill) => skill.name.toLowerCase() === name.toLowerCase()),
     [managedSkills],
+  )
+
+  /** Prompt user for a new name when a skill name conflicts. Returns null if cancelled. */
+  const promptRename = useCallback(
+    (existingName: string): string | null => {
+      const newName = window.prompt(
+        t('errors.skillNameConflictPrompt', { name: existingName }),
+        `${existingName}-2`,
+      )
+      if (!newName || !newName.trim()) return null
+      return newName.trim()
+    },
+    [t],
   )
 
   const formatRelative = (ms: number | null | undefined) => {
@@ -944,17 +950,18 @@ function App() {
         throw new Error(t('errors.noSkillsFoundLocal'))
       }
       if (candidates.length === 1 && candidates[0].valid) {
-        const desiredName = localName.trim() || candidates[0].name
+        let desiredName = localName.trim() || candidates[0].name
         if (isSkillNameTaken(desiredName)) {
-          setError(t('errors.skillAlreadyExists', { name: desiredName }))
-          return
+          const renamed = promptRename(desiredName)
+          if (!renamed) return
+          desiredName = renamed
         }
         const created = await invokeTauri<InstallResultDto>(
           'install_local_selection',
           {
             basePath,
             subpath: candidates[0].subpath,
-            name: localName.trim() || undefined,
+            name: desiredName,
           },
         )
         {
@@ -1095,16 +1102,18 @@ function App() {
           throw new Error(t('errors.noSkillsFoundWithHint'))
         }
         if (candidates.length === 1) {
-          if (isSkillNameTaken(candidates[0].name)) {
-            setError(t('errors.skillAlreadyExists', { name: candidates[0].name }))
-            return
+          let desiredName = gitName.trim() || candidates[0].name
+          if (isSkillNameTaken(desiredName)) {
+            const renamed = promptRename(desiredName)
+            if (!renamed) return
+            desiredName = renamed
           }
           const created = await invokeTauri<InstallResultDto>(
             'install_git_selection',
             {
             repoUrl: url,
             subpath: candidates[0].subpath,
-            name: gitName.trim() || undefined,
+            name: desiredName,
             },
           )
           {
@@ -1162,16 +1171,18 @@ function App() {
             (containMatches.length === 1 ? containMatches[0] : undefined)
           setAutoSelectSkillName(null)
           if (match) {
-            if (isSkillNameTaken(match.name)) {
-              setError(t('errors.skillAlreadyExists', { name: match.name }))
-              return
+            let desiredName = gitName.trim() || match.name
+            if (isSkillNameTaken(desiredName)) {
+              const renamed = promptRename(desiredName)
+              if (!renamed) return
+              desiredName = renamed
             }
             const created = await invokeTauri<InstallResultDto>(
               'install_git_selection',
               {
                 repoUrl: url,
                 subpath: match.subpath,
-                name: gitName.trim() || undefined,
+                name: desiredName,
               },
             )
             {
@@ -1314,13 +1325,16 @@ function App() {
         ? localName.trim()
         : selected[0].name
     if (selected.length === 1 && isSkillNameTaken(desiredName)) {
-      setError(t('errors.skillAlreadyExists', { name: desiredName }))
-      return
+      const renamed = promptRename(desiredName)
+      if (!renamed) return
+      selected[0] = { ...selected[0], name: renamed }
     }
-    const duplicated = selected.find((c) => isSkillNameTaken(c.name))
-    if (selected.length > 1 && duplicated) {
-      setError(t('errors.skillAlreadyExists', { name: duplicated.name }))
-      return
+    if (selected.length > 1) {
+      const duplicated = selected.find((c) => isSkillNameTaken(c.name))
+      if (duplicated) {
+        setError(t('errors.skillAlreadyExists', { name: duplicated.name }))
+        return
+      }
     }
 
     setLoading(true)
@@ -1422,10 +1436,19 @@ function App() {
       setError(t('errors.selectAtLeastOneSkill'))
       return
     }
-    const duplicated = selected.find((c) => isSkillNameTaken(c.name))
-    if (duplicated) {
-      setError(t('errors.skillAlreadyExists', { name: duplicated.name }))
-      return
+    if (selected.length === 1) {
+      const desiredName = gitName.trim() || selected[0].name
+      if (isSkillNameTaken(desiredName)) {
+        const renamed = promptRename(desiredName)
+        if (!renamed) return
+        selected[0] = { ...selected[0], name: renamed }
+      }
+    } else {
+      const duplicated = selected.find((c) => isSkillNameTaken(c.name))
+      if (duplicated) {
+        setError(t('errors.skillAlreadyExists', { name: duplicated.name }))
+        return
+      }
     }
     if (selected.length > 1 && gitName.trim()) {
       setError(t('errors.multiSelectNoCustomName'))

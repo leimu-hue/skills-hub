@@ -177,6 +177,8 @@ export const resources = {
           'No skills found in this repository (SKILL.md not detected).',
         noSkillsFoundLocal: 'No skills found in this folder (SKILL.md not detected).',
         skillAlreadyExists: 'Skill "{{name}}" already exists. Please rename it.',
+        skillNameConflictPrompt:
+          '"{{name}}" already exists. Enter a new name to install, or cancel:',
         duplicateSelectedSkills:
           'Duplicate skill name "{{name}}" selected. Please select only one.',
         selectAtLeastOneSkill: 'Please select at least one Skill.',
@@ -467,6 +469,8 @@ export const resources = {
         noSkillsFoundWithHint: '未在该仓库中发现可导入的 Skills（未找到 SKILL.md）。',
         noSkillsFoundLocal: '未在该目录中发现可导入的 Skills（未找到 SKILL.md）。',
         skillAlreadyExists: '技能「{{name}}」已存在，请更换名称后再安装。',
+        skillNameConflictPrompt:
+          '「{{name}}」已存在。请输入新名称继续安装，或取消：',
         duplicateSelectedSkills: '所选 Skills 含有重复名称「{{name}}」，请只选择一个。',
         selectAtLeastOneSkill: '请至少选择一个 Skill',
         multiSelectNoCustomName:

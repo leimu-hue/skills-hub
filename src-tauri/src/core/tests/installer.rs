@@ -175,7 +175,7 @@ fn installs_local_skill_and_updates_from_source() {
         Ok(_) => panic!("expected error"),
         Err(e) => e,
     };
-    assert!(format!("{:#}", err).contains("skill already exists"));
+    assert!(format!("{:#}", err).contains("SKILL_NAME_CONFLICT|"));
 }
 
 #[test]
