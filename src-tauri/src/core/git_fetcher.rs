@@ -7,12 +7,19 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result};
 use git2::{FetchOptions, Repository};
 
-pub fn clone_or_pull(repo_url: &str, dest: &Path, branch: Option<&str>) -> Result<String> {
+use super::cancel_token::CancelToken;
+
+pub fn clone_or_pull(
+    repo_url: &str,
+    dest: &Path,
+    branch: Option<&str>,
+    cancel: Option<&CancelToken>,
+) -> Result<String> {
     // Prefer the system `git` binary if available. It tends to work better on macOS
     // networks because it respects user git config (proxy/certs) and OS trust store.
     if let Some(git_bin) = resolve_git_bin() {
         let started = Instant::now();
-        match clone_or_pull_via_git_cli(repo_url, dest, branch) {
+        match clone_or_pull_via_git_cli(repo_url, dest, branch, cancel) {
             Ok(head) => {
                 log::info!(
                     "[git_fetcher] git-cli ok (bin={}) {}s url={}",
@@ -166,6 +173,7 @@ fn run_cmd_with_timeout(
     mut cmd: Command,
     timeout: Duration,
     context: String,
+    cancel: Option<&CancelToken>,
 ) -> Result<std::process::Output> {
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -174,6 +182,12 @@ fn run_cmd_with_timeout(
     let mut child = cmd.spawn().with_context(|| context.clone())?;
     let start = Instant::now();
     loop {
+        if cancel.is_some_and(|c| c.is_cancelled()) {
+            let _ = child.kill();
+            let _ = child.wait();
+            anyhow::bail!("CANCELLED|操作已被用户取消。");
+        }
+
         if start.elapsed() > timeout {
             let _ = child.kill();
             let stderr = child
@@ -195,7 +209,12 @@ fn run_cmd_with_timeout(
     }
 }
 
-fn clone_or_pull_via_git_cli(repo_url: &str, dest: &Path, branch: Option<&str>) -> Result<String> {
+fn clone_or_pull_via_git_cli(
+    repo_url: &str,
+    dest: &Path,
+    branch: Option<&str>,
+    cancel: Option<&CancelToken>,
+) -> Result<String> {
     // Ensure parent exists so `git clone` can create dest.
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)
@@ -203,6 +222,16 @@ fn clone_or_pull_via_git_cli(repo_url: &str, dest: &Path, branch: Option<&str>) 
     }
 
     if dest.exists() {
+        // Remove stale lock files left by a previously crashed git process.
+        let git_dir = dest.join(".git");
+        for lock_name in &["index.lock", "shallow.lock", "HEAD.lock"] {
+            let lock_path = git_dir.join(lock_name);
+            if lock_path.exists() {
+                log::warn!("[git_fetcher] removing stale lock file: {:?}", lock_path);
+                let _ = std::fs::remove_file(&lock_path);
+            }
+        }
+
         // Fetch updates.
         let out = run_cmd_with_timeout(
             {
@@ -212,6 +241,7 @@ fn clone_or_pull_via_git_cli(repo_url: &str, dest: &Path, branch: Option<&str>) 
             },
             git_fetch_timeout(),
             format!("git fetch in {:?}", dest),
+            cancel,
         )?;
         if !out.status.success() {
             anyhow::bail!("git fetch failed: {}", String::from_utf8_lossy(&out.stderr));
@@ -232,6 +262,7 @@ fn clone_or_pull_via_git_cli(repo_url: &str, dest: &Path, branch: Option<&str>) 
                 },
                 git_fetch_timeout(),
                 format!("git checkout -B {} in {:?}", branch, dest),
+                cancel,
             )?;
             if !out.status.success() {
                 anyhow::bail!(
@@ -250,6 +281,7 @@ fn clone_or_pull_via_git_cli(repo_url: &str, dest: &Path, branch: Option<&str>) 
                 },
                 git_fetch_timeout(),
                 format!("git reset --hard in {:?}", dest),
+                cancel,
             )?;
             if !out.status.success() {
                 anyhow::bail!(
@@ -271,6 +303,7 @@ fn clone_or_pull_via_git_cli(repo_url: &str, dest: &Path, branch: Option<&str>) 
             cmd,
             git_timeout(),
             format!("git clone {} into {:?}", repo_url, dest),
+            cancel,
         )?;
         if !out.status.success() {
             anyhow::bail!("git clone failed: {}", String::from_utf8_lossy(&out.stderr));
@@ -287,6 +320,7 @@ fn clone_or_pull_via_git_cli(repo_url: &str, dest: &Path, branch: Option<&str>) 
             },
             git_fetch_timeout(),
             format!("git checkout {} in {:?}", branch, dest),
+            cancel,
         )?;
         if !out.status.success() {
             // Don't hard-fail; still return HEAD for caller.
@@ -307,6 +341,7 @@ fn clone_or_pull_via_git_cli(repo_url: &str, dest: &Path, branch: Option<&str>) 
         },
         git_fetch_timeout(),
         format!("git rev-parse HEAD in {:?}", dest),
+        cancel,
     )?;
     if !out.status.success() {
         anyhow::bail!(

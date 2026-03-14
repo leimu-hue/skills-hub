@@ -1,6 +1,9 @@
 mod commands;
 mod core;
 
+use std::sync::Arc;
+
+use core::cancel_token::CancelToken;
 use core::skill_store::{default_db_path, migrate_legacy_db_if_needed, SkillStore};
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
@@ -28,6 +31,7 @@ pub fn run() {
             let store = SkillStore::new(db_path);
             store.ensure_schema().map_err(tauri::Error::from)?;
             app.manage(store.clone());
+            app.manage(Arc::new(CancelToken::new()));
 
             // Backfill description for skills that were installed before V2 schema.
             core::installer::backfill_skill_descriptions(&store);
@@ -89,7 +93,8 @@ pub fn run() {
             commands::get_managed_skills,
             commands::delete_managed_skill,
             commands::get_featured_skills,
-            commands::search_skills_online
+            commands::search_skills_online,
+            commands::cancel_current_operation
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

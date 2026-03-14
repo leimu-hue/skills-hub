@@ -109,6 +109,9 @@ function App() {
   )
   const formatErrorMessage = useCallback(
     (raw: string) => {
+      if (raw.includes('CANCELLED|')) {
+        return '' // Silently ignore cancelled operations
+      }
       if (raw.includes('skill already exists in central repo')) {
         // Extract skill name from path like: skill already exists in central repo: "/path/to/react-best-practices"
         const pathMatch = raw.match(/central repo:\s*"?([^"]+)"?/)
@@ -341,7 +344,8 @@ function App() {
 
   useEffect(() => {
     if (!error) return
-    toast.error(formatErrorMessage(error), { duration: 2600 })
+    const msg = formatErrorMessage(error)
+    if (msg) toast.error(msg, { duration: 2600 })
     setError(null)
     setActionMessage(null)
   }, [error, formatErrorMessage])
@@ -586,6 +590,13 @@ function App() {
   const handleOpenAdd = useCallback(() => {
     setShowAddModal(true)
   }, [])
+
+  const handleCancelLoading = useCallback(() => {
+    void invokeTauri('cancel_current_operation').catch(() => {})
+    setLoading(false)
+    setLoadingStartAt(null)
+    setActionMessage(null)
+  }, [invokeTauri])
 
   const handleCloseAdd = useCallback(() => {
     if (!loading) setShowAddModal(false)
@@ -1715,6 +1726,7 @@ function App() {
         loading={loading}
         actionMessage={actionMessage}
         loadingStartAt={loadingStartAt}
+        onCancel={handleCancelLoading}
         t={t}
       />
 

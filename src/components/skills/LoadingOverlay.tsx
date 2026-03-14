@@ -5,6 +5,7 @@ type LoadingOverlayProps = {
   loading: boolean
   actionMessage: string | null
   loadingStartAt: number | null
+  onCancel?: () => void
   t: TFunction
 }
 
@@ -12,6 +13,7 @@ const LoadingOverlay = ({
   loading,
   actionMessage,
   loadingStartAt,
+  onCancel,
   t,
 }: LoadingOverlayProps) => {
   if (!loading) return null
@@ -33,6 +35,15 @@ const LoadingOverlay = ({
           <div className="progress-bar">
             <div className="progress-fill" />
           </div>
+          {onCancel ? (
+            <button
+              className="btn btn-secondary loading-cancel-btn"
+              type="button"
+              onClick={onCancel}
+            >
+              {t('cancel')}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

@@ -859,6 +859,10 @@
   gap: 10px;
 }
 
+.loading-cancel-btn {
+  margin-top: 8px;
+}
+
 .loader-spinner {
   width: 24px;
   height: 24px;

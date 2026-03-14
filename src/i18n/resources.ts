@@ -132,7 +132,7 @@ export const resources = {
       processingTitle: 'Installing Skills...',
       processingTipShort: 'Cloning repository and syncing to tools',
       processingTipLong:
-        'Running file/network operations. First fetch may take 10–60 seconds; subsequent installs use cache and are faster.',
+        'Running file/network operations. First fetch may take a while depending on network; subsequent installs use cache and are faster.',
       newToolsTitle: 'New tools detected',
       newToolsBody:
         'We detected newly installed tools: {{tools}}. Sync managed skills now?',
@@ -411,7 +411,7 @@ export const resources = {
       installSelected: '安装选中',
       processingTitle: '正在安装技能...',
       processingTipShort: '正在克隆仓库并同步到工具',
-      processingTipLong: '正在执行文件/网络操作，首次获取可能需要 10~60 秒。',
+      processingTipLong: '正在执行文件/网络操作，首次获取耗时取决于网络状况，后续安装使用缓存会更快。',
       newToolsTitle: '检测到新安装的工具',
       newToolsBody: '已检测到新工具：{{tools}}，是否立即同步托管 Skills？',
       later: '稍后',

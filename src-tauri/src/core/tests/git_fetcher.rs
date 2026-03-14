@@ -35,10 +35,22 @@ fn clone_then_pull_updates_head() {
     let dest_dir = tempfile::tempdir().unwrap();
     let dest = dest_dir.path().join("clone");
 
-    let h1 = clone_or_pull(origin_dir.path().to_string_lossy().as_ref(), &dest, None).unwrap();
+    let h1 = clone_or_pull(
+        origin_dir.path().to_string_lossy().as_ref(),
+        &dest,
+        None,
+        None,
+    )
+    .unwrap();
     assert_eq!(h1, c2.to_string(), "首次 clone 应指向最新提交");
 
     let c3 = commit_file(&origin, "b.txt", b"v3", "c3");
-    let h2 = clone_or_pull(origin_dir.path().to_string_lossy().as_ref(), &dest, None).unwrap();
+    let h2 = clone_or_pull(
+        origin_dir.path().to_string_lossy().as_ref(),
+        &dest,
+        None,
+        None,
+    )
+    .unwrap();
     assert_eq!(h2, c3.to_string(), "再次调用应更新到最新提交");
 }

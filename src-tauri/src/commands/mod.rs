@@ -2,12 +2,15 @@ use anyhow::Context;
 use serde::Serialize;
 use tauri::State;
 
+use std::sync::Arc;
+
 use crate::core::cache_cleanup::{
     cleanup_git_cache_dirs, get_git_cache_cleanup_days as get_git_cache_cleanup_days_core,
     get_git_cache_ttl_secs as get_git_cache_ttl_secs_core,
     set_git_cache_cleanup_days as set_git_cache_cleanup_days_core,
     set_git_cache_ttl_secs as set_git_cache_ttl_secs_core,
 };
+use crate::core::cancel_token::CancelToken;
 use crate::core::central_repo::{ensure_central_repo, resolve_central_repo_path};
 use crate::core::featured_skills::{fetch_featured_skills, FeaturedSkill};
 use crate::core::github_search::{search_github_repos, RepoSummary};
@@ -388,12 +391,15 @@ pub async fn install_local_selection(
 pub async fn install_git(
     app: tauri::AppHandle,
     store: State<'_, SkillStore>,
+    cancel: State<'_, Arc<CancelToken>>,
     repoUrl: String,
     name: Option<String>,
 ) -> Result<InstallResultDto, String> {
     let store = store.inner().clone();
+    cancel.reset();
+    let cancel_token = Arc::clone(cancel.inner());
     tauri::async_runtime::spawn_blocking(move || {
-        let result = install_git_skill(&app, &store, &repoUrl, name)?;
+        let result = install_git_skill(&app, &store, &repoUrl, name, Some(&cancel_token))?;
         Ok::<_, anyhow::Error>(to_install_dto(result))
     })
     .await
@@ -861,6 +867,12 @@ pub async fn search_skills_online(
     .await
     .map_err(|err| err.to_string())?
     .map_err(format_anyhow_error)
+}
+
+#[tauri::command]
+pub fn cancel_current_operation(cancel: State<'_, Arc<CancelToken>>) -> Result<(), String> {
+    cancel.cancel();
+    Ok(())
 }
 
 #[cfg(test)]

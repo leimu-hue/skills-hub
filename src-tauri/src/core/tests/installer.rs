@@ -245,6 +245,7 @@ fn install_git_skill_errors_on_multi_skills_repo_root() {
         &store,
         repo_dir.path().to_string_lossy().as_ref(),
         None,
+        None,
     ) {
         Ok(_) => panic!("expected error"),
         Err(e) => e,

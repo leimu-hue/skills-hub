@@ -7,6 +7,7 @@ use tauri::Manager;
 use uuid::Uuid;
 
 use super::cache_cleanup::get_git_cache_ttl_secs;
+use super::cancel_token::CancelToken;
 use super::central_repo::{ensure_central_repo, resolve_central_repo_path};
 use super::content_hash::hash_dir;
 use super::git_fetcher::clone_or_pull;
@@ -86,6 +87,7 @@ pub fn install_git_skill<R: tauri::Runtime>(
     store: &SkillStore,
     repo_url: &str,
     name: Option<String>,
+    cancel: Option<&CancelToken>,
 ) -> Result<InstallResult> {
     let parsed = parse_github_url(repo_url);
     let name = name.unwrap_or_else(|| {
@@ -111,7 +113,13 @@ pub fn install_git_skill<R: tauri::Runtime>(
     // Always clone into a temp dir first, then copy the skill directory into central repo.
     // This avoids storing a full git repo (with .git) inside central repo and allows
     // handling GitHub folder URLs (/tree/<branch>/<path>).
-    let (repo_dir, rev) = clone_to_cache(app, store, &parsed.clone_url, parsed.branch.as_deref())?;
+    let (repo_dir, rev) = clone_to_cache(
+        app,
+        store,
+        &parsed.clone_url,
+        parsed.branch.as_deref(),
+        cancel,
+    )?;
 
     let copy_src = if let Some(subpath) = &parsed.subpath {
         let sub_src = repo_dir.join(subpath);
@@ -383,8 +391,13 @@ pub fn update_managed_skill_from_source<R: tauri::Runtime>(
             .ok_or_else(|| anyhow::anyhow!("missing source_ref for git skill"))?;
         let parsed = parse_github_url(repo_url);
 
-        let (repo_dir, rev) =
-            clone_to_cache(app, store, &parsed.clone_url, parsed.branch.as_deref())?;
+        let (repo_dir, rev) = clone_to_cache(
+            app,
+            store,
+            &parsed.clone_url,
+            parsed.branch.as_deref(),
+            None,
+        )?;
         new_revision = Some(rev);
 
         let copy_src = if let Some(subpath) = &parsed.subpath {
@@ -510,7 +523,13 @@ pub fn list_git_skills<R: tauri::Runtime>(
     repo_url: &str,
 ) -> Result<Vec<GitSkillCandidate>> {
     let parsed = parse_github_url(repo_url);
-    let (repo_dir, _rev) = clone_to_cache(app, store, &parsed.clone_url, parsed.branch.as_deref())?;
+    let (repo_dir, _rev) = clone_to_cache(
+        app,
+        store,
+        &parsed.clone_url,
+        parsed.branch.as_deref(),
+        None,
+    )?;
 
     let mut out: Vec<GitSkillCandidate> = Vec::new();
 
@@ -727,8 +746,13 @@ pub fn install_git_skill_from_selection<R: tauri::Runtime>(
         anyhow::bail!("skill already exists in central repo: {:?}", central_path);
     }
 
-    let (repo_dir, revision) =
-        clone_to_cache(app, store, &parsed.clone_url, parsed.branch.as_deref())?;
+    let (repo_dir, revision) = clone_to_cache(
+        app,
+        store,
+        &parsed.clone_url,
+        parsed.branch.as_deref(),
+        None,
+    )?;
 
     let copy_src = if subpath == "." {
         repo_dir.clone()
@@ -815,6 +839,7 @@ fn clone_to_cache<R: tauri::Runtime>(
     store: &SkillStore,
     clone_url: &str,
     branch: Option<&str>,
+    cancel: Option<&CancelToken>,
 ) -> Result<(PathBuf, String)> {
     let started = std::time::Instant::now();
     let cache_dir = app
@@ -859,14 +884,15 @@ fn clone_to_cache<R: tauri::Runtime>(
         repo_dir
     );
 
-    let rev = match clone_or_pull(clone_url, &repo_dir, branch) {
+    let rev = match clone_or_pull(clone_url, &repo_dir, branch, cancel) {
         Ok(rev) => rev,
         Err(err) => {
             // If cache got corrupted, retry once from a clean state.
             if repo_dir.exists() {
                 let _ = std::fs::remove_dir_all(&repo_dir);
             }
-            clone_or_pull(clone_url, &repo_dir, branch).with_context(|| format!("{:#}", err))?
+            clone_or_pull(clone_url, &repo_dir, branch, cancel)
+                .with_context(|| format!("{:#}", err))?
         }
     };
 
