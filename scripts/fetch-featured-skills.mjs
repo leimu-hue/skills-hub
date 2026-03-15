@@ -51,9 +51,9 @@ async function main() {
 
   console.log('Resolving skill owners...')
   const skills = []
-  // Process in batches of 5 to avoid rate limiting
-  for (let i = 0; i < clawSkills.length; i += 5) {
-    const batch = clawSkills.slice(i, i + 5)
+  // Process in batches of 10 for reasonable parallelism
+  for (let i = 0; i < clawSkills.length; i += 10) {
+    const batch = clawSkills.slice(i, i + 10)
     const results = await Promise.all(
       batch.map(async (s) => {
         const slug = s.slug ?? ''
@@ -74,7 +74,7 @@ async function main() {
       }),
     )
     skills.push(...results.filter(Boolean))
-    process.stdout.write(`  ${Math.min(i + 5, clawSkills.length)}/${clawSkills.length}\r`)
+    process.stdout.write(`  ${Math.min(i + 10, clawSkills.length)}/${clawSkills.length}\r`)
   }
   console.log('')
 
