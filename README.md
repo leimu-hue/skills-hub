@@ -7,11 +7,6 @@ A cross-platform desktop app (Tauri + React) to manage Agent Skills in one place
 - English (default): `README.md` (this file)
 - 中文：[`docs/README.zh.md`](docs/README.zh.md)
 
-Design docs:
-
-- System design (EN): [`docs/system-design.md`](docs/system-design.md)
-- 系统设计（中文）：[`docs/system-design.zh.md`](docs/system-design.zh.md)
-
 ## Key Features
 
 - **Explore page**: Browse featured skills (ClawHub, updated daily) and search online (skills.sh) — one-click install & sync to all detected tools

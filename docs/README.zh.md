@@ -115,10 +115,6 @@ cd src-tauri
 cargo test
 ```
 
-## 文档
-
-- 系统设计：[`docs/system-design.zh.md`](system-design.zh.md)
-
 ## FAQ / 备注
 
 - Skill 存在哪里？中心仓库（Central Repo）默认是 `~/.skillshub`，可在设置里修改。
