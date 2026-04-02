@@ -1,10 +1,10 @@
-use serde::Serialize;
-use tauri::State;
 use crate::core::featured_skills::{fetch_featured_skills, FeaturedSkill};
 use crate::core::skill_store::SkillStore;
 use crate::core::skills_search::{
     search_skills_online as search_skills_online_core, OnlineSkillResult,
 };
+use serde::Serialize;
+use tauri::State;
 
 #[derive(Debug, Serialize)]
 pub struct FeaturedSkillDto {

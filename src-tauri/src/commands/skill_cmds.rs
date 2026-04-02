@@ -129,9 +129,9 @@ pub async fn list_git_skills_cmd(
 ) -> Result<Vec<GitSkillCandidate>, String> {
     let store = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || list_git_skills(&app, &store, &repoUrl))
-    .await
-    .map_err(|err| err.to_string())?
-    .map_err(super::format_anyhow_error)
+        .await
+        .map_err(|err| err.to_string())?
+        .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]

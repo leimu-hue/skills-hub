@@ -6,8 +6,8 @@ use std::sync::Arc;
 use crate::core::cancel_token::CancelToken;
 use crate::core::onboarding::{build_onboarding_plan, OnboardingPlan};
 use crate::core::skill_store::SkillStore;
-use crate::core::tool_adapters::{is_tool_installed, resolve_default_path};
 use crate::core::tool_adapters::default_tool_adapters;
+use crate::core::tool_adapters::{is_tool_installed, resolve_default_path};
 
 #[derive(Debug, Serialize)]
 pub struct ToolInfoDto {

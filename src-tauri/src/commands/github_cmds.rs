@@ -1,6 +1,6 @@
-use tauri::State;
 use crate::core::github_search::{search_github_repos, RepoSummary};
 use crate::core::skill_store::SkillStore;
+use tauri::State;
 
 #[tauri::command]
 pub async fn search_github(

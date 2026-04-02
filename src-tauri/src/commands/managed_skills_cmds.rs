@@ -1,6 +1,6 @@
+use crate::core::skill_store::SkillStore;
 use serde::Serialize;
 use tauri::State;
-use crate::core::skill_store::SkillStore;
 
 #[derive(Debug, Serialize)]
 pub struct ManagedSkillDto {
