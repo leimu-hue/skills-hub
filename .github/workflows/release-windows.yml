@@ -1,0 +1,161 @@
+name: Release Windows
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: windows-2022
+
+    steps:
+      - name: 🛎️ Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ⏳ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: x86_64-pc-windows-msvc
+
+      - name: 📦 Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: 🛠️ Install Build Tools
+        shell: pwsh
+        run: |
+          # 安装 Strawberry Perl (OpenSSL 依赖)
+          choco install -y strawberryperl --no-progress
+          # 确保 perl 在 PATH 中
+          $env:PATH = "C:\Strawberry\perl\bin;" + $env:PATH
+
+      - name: 🔐 Configure Tauri Signing Key
+        env:
+          RAW_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          RAW_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          $envFile = $env:GITHUB_ENV
+          $key = $env:RAW_KEY.Trim()
+
+          if (-not $key) {
+            Write-Host "⚠️ TAURI_SIGNING_PRIVATE_KEY 未设置，构建未签名版本。"
+            exit 0
+          }
+
+          # 处理 Base64 编码逻辑
+          if ($key -match '^[A-Za-z0-9+/= ]+$') {
+            $decoded = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($key))
+            if ($decoded -notmatch '^untrusted comment:') {
+              $decoded = "untrusted comment: tauri signing key`n$decoded"
+            }
+            $keyB64 = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($decoded))
+            Add-Content -Path $envFile -Value "TAURI_SIGNING_PRIVATE_KEY=$keyB64"
+          } else {
+            $keyB64 = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($key))
+            Add-Content -Path $envFile -Value "TAURI_SIGNING_PRIVATE_KEY=$keyB64"
+          }
+
+          $pwd = $env:RAW_PASSWORD.Trim()
+          if ($pwd) {
+            Add-Content -Path $envFile -Value "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$pwd"
+          }
+        shell: pwsh
+
+      - name: 📦 Install Frontend Dependencies
+        run: npm ci
+
+      - name: 🏗️ Build Tauri App
+        run: |
+          # 构建 NSIS 安装包
+          npm run tauri:build -- --bundles nsis
+        shell: pwsh
+
+      # --- 核心修改：生成 updater.json ---
+      - name: 📝 Generate updater.json
+        id: gen_updater
+        run: |
+          # 1. 获取版本号 (去掉 'v' 前缀)
+          $VERSION = "${{ github.ref_name }}" -replace '^v', ''
+
+          # 2. 查找构建产物 (.exe 文件)
+          # Tauri 默认输出路径: src-tauri/target/release/bundle/nsis/
+          $EXE_PATH = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*.exe" | Select-Object -First 1
+
+          if (-not $EXE_PATH) {
+            Write-Error "构建产物未找到！请检查构建步骤。"
+            exit 1
+          }
+
+          # 3. 计算签名 (Signature)
+          # Tauri v1 使用 SHA256 哈希值作为签名
+          $SIGNATURE = (Get-FileHash -Path $EXE_PATH.FullName -Algorithm SHA256).Hash.ToLower()
+
+          # 4. 计算文件大小 (Bytes)
+          $SIZE = $EXE_PATH.Length
+
+          # 5. 构建下载 URL
+          # 格式: https://github.com/{owner}/{repo}/releases/download/{tag}/{filename}
+          $REPO = "${{ github.repository }}"
+          $FILENAME = $EXE_PATH.Name
+          $URL = "https://github.com/$REPO/releases/download/${{ github.ref_name }}/$FILENAME"
+
+          # 6. 生成 JSON 内容
+          # 注意：这里使用 PowerShell 的 Here-String 来生成标准 JSON
+          $JSON_CONTENT = @"
+          {
+            "version": "$VERSION",
+            "notes": "Release ${{ github.ref_name }}",
+            "pub_date": "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ssZ')",
+            "platforms": {
+              "windows-x86_64": {
+                "signature": "$SIGNATURE",
+                "url": "$URL"
+              }
+            }
+          }
+          "@
+
+          # 7. 输出到文件
+          Set-Content -Path "updater.json" -Value $JSON_CONTENT -Encoding UTF8
+
+          # 8. 调试输出
+          Write-Host "Generated updater.json:"
+          Get-Content "updater.json"
+
+          # 9. 设置输出变量供后续步骤使用
+          echo "SIGNATURE=$SIGNATURE" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: 🚀 Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            ### 📥 Installation
+            Download and run the `.exe` installer.
+
+            ### 🔄 Auto Update
+            This release supports automatic updates via Tauri Updater.
+          files: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            updater.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
