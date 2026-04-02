@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use super::tool_data::{default_tool_adapters, ToolAdapter};
-use super::tool_id::ToolId;
 
 static ADAPTERS_BY_KEY: OnceLock<HashMap<String, ToolAdapter>> = OnceLock::new();
 static ADAPTERS_BY_SKILLS_DIR: OnceLock<HashMap<&'static str, Vec<ToolAdapter>>> = OnceLock::new();

@@ -9,6 +9,7 @@ use crate::core::installer::{
     install_git_skill, install_git_skill_from_selection, install_local_skill,
     install_local_skill_from_selection, list_git_skills, list_local_skills,
     update_managed_skill_from_source, GitSkillCandidate, InstallResult, LocalSkillCandidate,
+    UpdateResult,
 };
 use crate::core::skill_store::SkillStore;
 
@@ -51,6 +52,16 @@ fn to_install_dto(result: InstallResult) -> InstallResultDto {
         name: result.name,
         central_path: result.central_path.to_string_lossy().to_string(),
         content_hash: result.content_hash,
+    }
+}
+
+fn to_update_dto(result: UpdateResult) -> UpdateResultDto {
+    UpdateResultDto {
+        skill_id: result.skill_id,
+        name: result.name,
+        content_hash: result.content_hash,
+        source_revision: result.source_revision,
+        updated_targets: result.updated_targets,
     }
 }
 
@@ -135,9 +146,26 @@ pub async fn list_git_skills_cmd(
 ) -> Result<Vec<GitSkillCandidate>, String> {
     let store = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || list_git_skills(&app, &store, &repoUrl))
-        .await
-        .map_err(|err| err.to_string())?
-        .map_err(format_anyhow_error)
+    .await
+    .map_err(|err| err.to_string())?
+    .map_err(format_anyhow_error)
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn update_managed_skill(
+    app: tauri::AppHandle,
+    store: State<'_, SkillStore>,
+    skillId: String,
+) -> Result<UpdateResultDto, String> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let res = update_managed_skill_from_source(&app, &store, &skillId)?;
+        Ok::<_, anyhow::Error>(to_update_dto(res))
+    })
+    .await
+    .map_err(|err| err.to_string())?
+    .map_err(format_anyhow_error)
 }
 
 #[tauri::command]

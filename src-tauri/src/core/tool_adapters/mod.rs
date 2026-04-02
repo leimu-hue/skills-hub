@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 mod tool_data;
 mod tool_detection;
 mod tool_id;
