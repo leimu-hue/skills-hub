@@ -2,7 +2,7 @@ import { memo, useState } from 'react'
 import { Box, Copy, Folder, GitBranch as Github, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { TFunction } from 'i18next'
-import type { ManagedSkill, ToolOption } from '../types'
+import type { ManagedSkill, ToolOption } from '../../../types'
 
 type GithubInfo = {
   label: string

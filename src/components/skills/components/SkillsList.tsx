@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { MessageCircle } from 'lucide-react'
 import type { TFunction } from 'i18next'
-import type { ManagedSkill, OnboardingPlan, ToolOption } from '../types'
+import type { ManagedSkill, OnboardingPlan, ToolOption } from '../../../types'
 import SkillCard from './SkillCard'
 
 type GithubInfo = {

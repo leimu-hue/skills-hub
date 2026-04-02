@@ -19,7 +19,8 @@ import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
 import { toast } from 'sonner'
 import type { TFunction } from 'i18next'
-import type { ManagedSkill, SkillFileEntry } from '../types'
+import type { ManagedSkill, SkillFileEntry } from '../../../types'
+import { getExpandedPathsForFile } from './skillDetailTree'
 
 // ─── Types ───────────────────────────────────────────
 type SkillDetailViewProps = {
@@ -382,22 +383,24 @@ const FileContentRenderer = memo(
 FileContentRenderer.displayName = 'FileContentRenderer'
 
 // ─── Main component ──────────────────────────────────
+interface SkillDetailViewPropsWithTheme extends SkillDetailViewProps {
+  isDark: boolean
+}
+
 const SkillDetailView = ({
   skill,
   onBack,
   invokeTauri,
   formatRelative,
   t,
-}: SkillDetailViewProps) => {
+  isDark,
+}: SkillDetailViewPropsWithTheme) => {
   const [files, setFiles] = useState<SkillFileEntry[]>([])
   const [activeFile, setActiveFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState('')
   const [loadingFiles, setLoadingFiles] = useState(true)
   const [loadingContent, setLoadingContent] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-
-  const isDark =
-    document.documentElement.getAttribute('data-theme') === 'dark'
 
   const tree = useMemo(() => buildTree(files), [files])
 
@@ -411,10 +414,12 @@ const SkillDetailView = ({
         })
         if (cancelled) return
         setFiles(result)
-        // Start with all folders collapsed
-        setExpanded(new Set())
         if (result.length > 0) {
-          setActiveFile(result[0].path)
+          const initialFile = result[0].path
+          setExpanded(getExpandedPathsForFile(initialFile))
+          setActiveFile(initialFile)
+        } else {
+          setExpanded(new Set())
         }
       } catch {
         if (!cancelled) {

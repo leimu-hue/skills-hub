@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { TFunction } from 'i18next'
-import type { ToolOption, ToolStatusDto } from '../types'
+import type { ToolOption, ToolStatusDto } from '../../../types'
 
 type AddSkillModalProps = {
   open: boolean

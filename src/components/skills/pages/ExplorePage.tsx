@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react'
 import { Plus, Search, Star } from 'lucide-react'
 import type { TFunction } from 'i18next'
-import type { FeaturedSkillDto, ManagedSkill, OnlineSkillDto } from '../types'
+import type { FeaturedSkillDto, ManagedSkill, OnlineSkillDto } from '../../../types'
 
 type ExplorePageProps = {
   featuredSkills: FeaturedSkillDto[]

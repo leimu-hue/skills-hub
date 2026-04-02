@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { TFunction } from 'i18next'
-import type { GitSkillCandidate } from '../types'
+import type { GitSkillCandidate } from '../../../types'
 
 type GitPickModalProps = {
   open: boolean

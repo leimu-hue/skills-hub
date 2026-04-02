@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { Download } from 'lucide-react'
 import type { TFunction } from 'i18next'
-import type { OnboardingPlan } from '../types'
+import type { OnboardingPlan } from '../../../types'
 
 type ImportModalProps = {
   open: boolean

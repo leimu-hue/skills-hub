@@ -1,71 +1,86 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Update } from '@tauri-apps/plugin-updater'
-import './App.css'
-import { useTranslation } from 'react-i18next'
-import { Toaster, toast } from 'sonner'
-import Markdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import ExplorePage from './components/skills/pages/ExplorePage'
-import FilterBar from './components/skills/components/FilterBar'
-import SkillDetailView from './components/skills/components/SkillDetailView'
-import Header from './components/skills/Header'
-import LoadingOverlay from './components/skills/components/LoadingOverlay'
-import SkillsList from './components/skills/components/SkillsList'
-import AddSkillModal from './components/skills/modals/AddSkillModal'
-import DeleteModal from './components/skills/modals/DeleteModal'
-import GitPickModal from './components/skills/modals/GitPickModal'
-import LocalPickModal from './components/skills/modals/LocalPickModal'
-import ImportModal from './components/skills/modals/ImportModal'
-import NewToolsModal from './components/skills/modals/NewToolsModal'
-import SharedDirModal from './components/skills/modals/SharedDirModal'
-import SettingsPage from './components/skills/pages/SettingsPage'
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Update } from "@tauri-apps/plugin-updater";
+import "./App.css";
+import { useTranslation } from "react-i18next";
+import { Toaster, toast } from "sonner";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import ExplorePage from "./components/skills/pages/ExplorePage";
+import FilterBar from "./components/skills/components/FilterBar";
+import SkillDetailView from "./components/skills/components/SkillDetailView";
+import Header from "./components/skills/Header";
+import LoadingOverlay from "./components/skills/components/LoadingOverlay";
+import SkillsList from "./components/skills/components/SkillsList";
+import AddSkillModal from "./components/skills/modals/AddSkillModal";
+import DeleteModal from "./components/skills/modals/DeleteModal";
+import GitPickModal from "./components/skills/modals/GitPickModal";
+import LocalPickModal from "./components/skills/modals/LocalPickModal";
+import ImportModal from "./components/skills/modals/ImportModal";
+import NewToolsModal from "./components/skills/modals/NewToolsModal";
+import SharedDirModal from "./components/skills/modals/SharedDirModal";
+import SettingsPage from "./components/skills/pages/SettingsPage";
 import type {
   FeaturedSkillDto,
-  GitSkillCandidate,
-  InstallResultDto,
-  LocalSkillCandidate,
   ManagedSkill,
   OnboardingPlan,
   OnlineSkillDto,
-  ToolOption,
-  UpdateResultDto,
-} from './types'
+} from "./types";
 import {
   useTheme,
   useSkills,
   useSettings,
   useModals,
-} from './hooks'
+  useSkillActions,
+} from "./hooks";
+import { buildExploreInstallState } from "./logic/exploreInstall";
+import {
+  getSettingsAvailableVersion,
+  shouldShowSharedUpdateModal,
+  shouldShowUpdateModal,
+} from "./logic/updateAvailability";
+import { getUpdateViewState } from "./logic/updateViewState";
+import {
+  getSkillSourceLabel,
+  getGithubInfo,
+  createFormatRelative,
+} from "./logic/skillHelpers";
 
 function App() {
-  const { t, i18n } = useTranslation()
+  const { t, i18n } = useTranslation();
 
   // Theme hook
   const {
     themePreference,
+    systemTheme,
     setThemePreference,
     toggleLanguage,
     language,
-  } = useTheme(i18n as unknown as { changeLanguage: (lang: string) => Promise<void>; resolvedLanguage?: string; language: string })
+  } = useTheme(
+    i18n as unknown as {
+      changeLanguage: (lang: string) => Promise<void>;
+      resolvedLanguage?: string;
+      language: string;
+    },
+  );
 
   // Tauri detection
   const isTauri =
-    typeof window !== 'undefined' &&
+    typeof window !== "undefined" &&
     Boolean(
       (window as { __TAURI__?: unknown }).__TAURI__ ||
-        (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__,
-    )
+      (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__,
+    );
 
   const invokeTauri = useCallback(
     async <T,>(command: string, args?: Record<string, unknown>) => {
       if (!isTauri) {
-        throw new Error('Tauri API is not available')
+        throw new Error("Tauri API is not available");
       }
-      const { invoke } = await import('@tauri-apps/api/core')
-      return invoke<T>(command, args)
+      const { invoke } = await import("@tauri-apps/api/core");
+      return invoke<T>(command, args);
     },
     [isTauri],
-  )
+  );
 
   // Skills hook
   const {
@@ -78,7 +93,7 @@ function App() {
     sharedToolIdsByToolId,
     toolLabelById,
     loadManagedSkills,
-  } = useSkills({ invokeTauri, isTauri })
+  } = useSkills({ invokeTauri, isTauri });
 
   // Settings hook
   const {
@@ -91,10 +106,10 @@ function App() {
     handleGitCacheTtlSecsChange,
     handleGithubTokenChange,
     handleClearGitCacheNow,
-  } = useSettings({ invokeTauri, isTauri, t })
+  } = useSettings({ invokeTauri, isTauri, t });
 
   // Modals hook
-  const modals = useModals()
+  const modals = useModals();
   const {
     showAddModal,
     showImportModal,
@@ -142,367 +157,492 @@ function App() {
     handleSharedCancel,
     setPendingDeleteId,
     setPendingSharedToggle,
-  } = modals
+  } = modals;
 
   // Local state
-  const [plan, setPlan] = useState<OnboardingPlan | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [loadingStartAt, setLoadingStartAt] = useState<number | null>(null)
-  const [actionMessage, setActionMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [selected, setSelected] = useState<Record<string, boolean>>({})
-  const [variantChoice, setVariantChoice] = useState<Record<string, string>>({})
-  const [syncTargets, setSyncTargets] = useState<Record<string, boolean>>({})
-  const [successToastMessage, setSuccessToastMessage] = useState<string | null>(null)
-  const [updateAvailableVersion, setUpdateAvailableVersion] = useState<string | null>(null)
-  const [updateBody, setUpdateBody] = useState<string | null>(null)
-  const [updateInstalling, setUpdateInstalling] = useState(false)
-  const [updateDone, setUpdateDone] = useState(false)
-  const updateObjRef = useRef<Update | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [sortBy, setSortBy] = useState<'updated' | 'name'>('updated')
-  const [activeView, setActiveView] = useState<'myskills' | 'explore' | 'detail' | 'settings'>('myskills')
-  const [detailSkill, setDetailSkill] = useState<ManagedSkill | null>(null)
-  const [featuredSkills, setFeaturedSkills] = useState<FeaturedSkillDto[]>([])
-  const [featuredLoading, setFeaturedLoading] = useState(false)
-  const [exploreFilter, setExploreFilter] = useState('')
-  const [searchResults, setSearchResults] = useState<OnlineSkillDto[]>([])
-  const [searchLoading, setSearchLoading] = useState(false)
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [autoSelectSkillName, setAutoSelectSkillName] = useState<string | null>(null)
-  const [exploreInstallTrigger, setExploreInstallTrigger] = useState(0)
-  const exploreInstallUrlRef = useRef<string | null>(null)
+  const [plan, setPlan] = useState<OnboardingPlan | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingStartAt, setLoadingStartAt] = useState<number | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [variantChoice, setVariantChoice] = useState<Record<string, string>>(
+    {},
+  );
+  const [syncTargets, setSyncTargets] = useState<Record<string, boolean>>({});
+  const [successToastMessage, setSuccessToastMessage] = useState<string | null>(
+    null,
+  );
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [updateAvailableVersion, setUpdateAvailableVersion] = useState<
+    string | null
+  >(null);
+  const [updateBody, setUpdateBody] = useState<string | null>(null);
+  const [updateModalVersion, setUpdateModalVersion] = useState<string | null>(
+    null,
+  );
+  const [ignoredUpdateVersion, setIgnoredUpdateVersion] = useState<
+    string | null
+  >(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem("skills-ignored-update-version");
+  });
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateInstalling, setUpdateInstalling] = useState(false);
+  const [updateDone, setUpdateDone] = useState(false);
+  const [updateCheckCompleted, setUpdateCheckCompleted] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const updateObjRef = useRef<Update | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"updated" | "name">("updated");
+  const [activeView, setActiveView] = useState<
+    "myskills" | "explore" | "detail" | "settings"
+  >("myskills");
+  const [detailSkill, setDetailSkill] = useState<ManagedSkill | null>(null);
+  const [featuredSkills, setFeaturedSkills] = useState<FeaturedSkillDto[]>([]);
+  const [featuredLoading, setFeaturedLoading] = useState(false);
+  const [exploreFilter, setExploreFilter] = useState("");
+  const [searchResults, setSearchResults] = useState<OnlineSkillDto[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [autoSelectSkillName, setAutoSelectSkillName] = useState<string | null>(
+    null,
+  );
 
   // Helper functions
   const isSkillNameTaken = useCallback(
     (name: string) =>
-      managedSkills.some((skill) => skill.name.toLowerCase() === name.toLowerCase()),
+      managedSkills.some(
+        (skill) => skill.name.toLowerCase() === name.toLowerCase(),
+      ),
     [managedSkills],
-  )
+  );
 
-  const formatRelative = (ms: number | null | undefined) => {
-    if (!ms) return t('relative.empty')
-    const diff = Date.now() - ms
-    if (diff < 0) return t('relative.empty')
-    const minutes = Math.floor(diff / 60000)
-    if (minutes < 1) return t('relative.justNow')
-    if (minutes < 60) {
-      return t('relative.minutesAgo', { minutes })
-    }
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) {
-      return t('relative.hoursAgo', { hours })
-    }
-    const days = Math.floor(hours / 24)
-    return t('relative.daysAgo', { days })
-  }
+  const formatRelative = useMemo(() => createFormatRelative(t), [t]);
 
-  const getSkillSourceLabel = (skill: ManagedSkill) => {
-    const key = skill.source_type.toLowerCase()
-    if (key.includes('git') && skill.source_ref) {
-      return skill.source_ref
-    }
-    return skill.central_path
-  }
-
-  const getGithubInfo = (url: string | null | undefined) => {
-    if (!url) return null
-    const normalized = url.replace(/^git\+/, '')
-    try {
-      const parsed = new URL(normalized)
-      if (!parsed.hostname.includes('github.com')) return null
-      const parts = parsed.pathname.split('/').filter(Boolean)
-      const owner = parts[0]
-      const repo = parts[1]?.replace(/\.git$/, '')
-      if (!owner || !repo) return null
-      return {
-        label: `${owner}/${repo}`,
-        href: `https://github.com/${owner}/${repo}`,
-      }
-    } catch {
-      const match = normalized.match(/github\.com\/([^/]+)\/([^/#?]+)/i)
-      if (!match) return null
-      const owner = match[1]
-      const repo = match[2].replace(/\.git$/, '')
-      return {
-        label: `${owner}/${repo}`,
-        href: `https://github.com/${owner}/${repo}`,
-      }
-    }
-  }
+  // Skill actions hook
+  const skillActions = useSkillActions({
+    invokeTauri,
+    tools,
+    syncTargets,
+    isInstalled,
+    uniqueToolIdsBySkillsDir,
+    sharedToolIdsByToolId,
+    isSkillNameTaken,
+    loadManagedSkills,
+    setLoading,
+    setLoadingStartAt,
+    setError,
+    setActionMessage,
+    setSuccessToastMessage,
+    setShowAddModal,
+    setShowLocalPickModal,
+    setShowGitPickModal,
+    setLocalPath,
+    setLocalName,
+    setGitUrl,
+    setGitName,
+    setLocalCandidates,
+    setLocalCandidatesBasePath,
+    setLocalCandidateSelected,
+    setGitCandidates,
+    setGitCandidatesRepoUrl,
+    setGitCandidateSelected,
+    t,
+  });
 
   // Load plan
   const loadPlan = useCallback(async () => {
-    setLoading(true)
-    setLoadingStartAt(Date.now())
-    setError(null)
+    setLoading(true);
+    setLoadingStartAt(Date.now());
+    setError(null);
     try {
-      const result = await invokeTauri<OnboardingPlan>('get_onboarding_plan')
-      setPlan(result)
-      const defaultSelected: Record<string, boolean> = {}
-      const defaultChoice: Record<string, string> = {}
+      const result = await invokeTauri<OnboardingPlan>("get_onboarding_plan");
+      setPlan(result);
+      const defaultSelected: Record<string, boolean> = {};
+      const defaultChoice: Record<string, string> = {};
       result.groups.forEach((group) => {
-        defaultSelected[group.name] = true
-        const first = group.variants[0]
+        defaultSelected[group.name] = true;
+        const first = group.variants[0];
         if (first) {
-          defaultChoice[group.name] = first.path
+          defaultChoice[group.name] = first.path;
         }
-      })
-      setSelected(defaultSelected)
-      setVariantChoice(defaultChoice)
-      return result
+      });
+      setSelected(defaultSelected);
+      setVariantChoice(defaultChoice);
+      return result;
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-      return null
+      setError(err instanceof Error ? err.message : String(err));
+      return null;
     } finally {
-      setLoading(false)
-      setLoadingStartAt(null)
+      setLoading(false);
+      setLoadingStartAt(null);
     }
-  }, [invokeTauri])
+  }, [invokeTauri]);
 
   // Effects
   useEffect(() => {
     if (isTauri) {
-      void loadPlan()
+      void loadPlan();
     }
-  }, [isTauri, loadPlan])
+  }, [isTauri, loadPlan]);
 
   useEffect(() => {
-    if (!successToastMessage) return
-    toast.success(successToastMessage, { duration: 1800 })
-    setSuccessToastMessage(null)
-  }, [successToastMessage])
+    if (!successToastMessage) return;
+    toast.success(successToastMessage, { duration: 1800 });
+    setSuccessToastMessage(null);
+  }, [successToastMessage]);
 
   useEffect(() => {
-    if (!error) return
-    if (error.includes('CANCELLED|')) {
-      setError(null)
-      setActionMessage(null)
-      return
+    if (!error) return;
+    if (error.includes("CANCELLED|")) {
+      setError(null);
+      setActionMessage(null);
+      return;
     }
-    toast.error(error, { duration: 2600 })
-    setError(null)
-    setActionMessage(null)
-  }, [error])
+    toast.error(error, { duration: 2600 });
+    setError(null);
+    setActionMessage(null);
+  }, [error]);
+
+  const loadUpdateBody = useCallback(async (update: Update) => {
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/qufei1993/skills-hub/releases/tags/v${update.version}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setUpdateBody(data.body ?? update.body ?? null);
+        return;
+      }
+    } catch {
+      // Release note loading failure should not hide update availability.
+    }
+
+    setUpdateBody(update.body ?? null);
+  }, []);
+
+  const handleCheckForUpdates = useCallback(async () => {
+    if (!isTauri) return;
+
+    setUpdateChecking(true);
+    setUpdateCheckCompleted(false);
+    setUpdateError(null);
+    setUpdateDone(false);
+
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+
+      if (update) {
+        updateObjRef.current = update;
+        setUpdateAvailableVersion(update.version);
+        await loadUpdateBody(update);
+      } else {
+        updateObjRef.current = null;
+        setUpdateAvailableVersion(null);
+        setUpdateBody(null);
+      }
+
+      setUpdateCheckCompleted(true);
+    } catch (err) {
+      setUpdateError(err instanceof Error ? err.message : String(err));
+      updateObjRef.current = null;
+      setUpdateCheckCompleted(false);
+    } finally {
+      setUpdateChecking(false);
+    }
+  }, [isTauri, loadUpdateBody]);
 
   // Update check effect
   useEffect(() => {
-    if (!isTauri) return
-    const ignoredVersion = localStorage.getItem('skills-ignored-update-version')
-    import('@tauri-apps/plugin-updater')
+    if (!isTauri) return;
+    import("@tauri-apps/plugin-updater")
       .then(({ check }) => check())
       .then(async (update) => {
-        if (update && update.version !== ignoredVersion) {
-          updateObjRef.current = update
-          setUpdateAvailableVersion(update.version)
-          try {
-            const res = await fetch(
-              `https://api.github.com/repos/qufei1993/skills-hub/releases/tags/v${update.version}`,
-            )
-            if (res.ok) {
-              const data = await res.json()
-              setUpdateBody(data.body ?? update.body ?? null)
-            } else {
-              setUpdateBody(update.body ?? null)
-            }
-          } catch {
-            setUpdateBody(update.body ?? null)
+        if (update) {
+          updateObjRef.current = update;
+          setUpdateAvailableVersion(update.version);
+          setUpdateCheckCompleted(false);
+          setUpdateError(null);
+
+          if (
+            shouldShowUpdateModal({
+              availableVersion: update.version,
+              ignoredVersion: ignoredUpdateVersion,
+              checkSource: "startup",
+            })
+          ) {
+            setUpdateModalVersion(update.version);
           }
+
+          await loadUpdateBody(update);
         }
       })
-      .catch(() => {})
-  }, [isTauri])
+      .catch(() => {});
+  }, [ignoredUpdateVersion, isTauri, loadUpdateBody]);
+
+  useEffect(() => {
+    if (!isTauri) {
+      setAppVersion(null);
+      return;
+    }
+
+    let cancelled = false;
+    import("@tauri-apps/api/app")
+      .then(({ getVersion }) => getVersion())
+      .then((version) => {
+        if (!cancelled) {
+          setAppVersion(version);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAppVersion(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isTauri]);
 
   // Tool status effect - set default sync targets
   useEffect(() => {
-    if (!toolStatus) return
+    if (!toolStatus) return;
     setSyncTargets((prev) => {
-      if (Object.keys(prev).length > 0) return prev
-      const next: Record<string, boolean> = {}
+      if (Object.keys(prev).length > 0) return prev;
+      const next: Record<string, boolean> = {};
       for (const t of toolStatus.tools) {
-        next[t.key] = toolStatus.installed.includes(t.key)
+        next[t.key] = toolStatus.installed.includes(t.key);
       }
-      return next
-    })
+      return next;
+    });
 
     if (toolStatus.newly_installed.length > 0) {
-      setShowNewToolsModal(true)
+      setShowNewToolsModal(true);
     }
-  }, [toolStatus, setShowNewToolsModal])
+  }, [toolStatus, setShowNewToolsModal]);
 
   // Computed values
   const visibleSkills = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
+    const query = searchQuery.trim().toLowerCase();
     const filtered = managedSkills.filter((skill) => {
-      if (!query) return true
+      if (!query) return true;
       return (
         skill.name.toLowerCase().includes(query) ||
         skill.central_path.toLowerCase().includes(query) ||
         skill.source_type.toLowerCase().includes(query)
-      )
-    })
+      );
+    });
     const sorted = [...filtered].sort((a, b) => {
-      if (sortBy === 'name') {
-        return a.name.localeCompare(b.name)
+      if (sortBy === "name") {
+        return a.name.localeCompare(b.name);
       }
-      return (b.updated_at ?? 0) - (a.updated_at ?? 0)
-    })
-    return sorted
-  }, [managedSkills, searchQuery, sortBy])
+      return (b.updated_at ?? 0) - (a.updated_at ?? 0);
+    });
+    return sorted;
+  }, [managedSkills, searchQuery, sortBy]);
 
   const newlyInstalledToolsText = useMemo(() => {
-    if (!toolStatus || toolStatus.newly_installed.length === 0) return ''
+    if (!toolStatus || toolStatus.newly_installed.length === 0) return "";
     return toolStatus.newly_installed
       .map((id) => tools.find((t) => t.id === id)?.label ?? id)
-      .join('、')
-  }, [toolStatus, tools])
+      .join("、");
+  }, [toolStatus, tools]);
 
   const pendingDeleteSkill = useMemo(
     () => managedSkills.find((skill) => skill.id === pendingDeleteId) ?? null,
     [managedSkills, pendingDeleteId],
-  )
+  );
 
   const pendingSharedLabels = useMemo(() => {
-    if (!pendingSharedToggle) return null
-    const toolId = pendingSharedToggle.toolId
-    const shared = sharedToolIdsByToolId[toolId] ?? []
-    const others = shared.filter((id) => id !== toolId)
+    if (!pendingSharedToggle) return null;
+    const toolId = pendingSharedToggle.toolId;
+    const shared = sharedToolIdsByToolId[toolId] ?? [];
+    const others = shared.filter((id) => id !== toolId);
     return {
       toolLabel: toolLabelById[toolId] ?? toolId,
-      otherLabels: others.map((id) => toolLabelById[id] ?? id).join(', '),
-    }
-  }, [pendingSharedToggle, sharedToolIdsByToolId, toolLabelById])
+      otherLabels: others.map((id) => toolLabelById[id] ?? id).join(", "),
+    };
+  }, [pendingSharedToggle, sharedToolIdsByToolId, toolLabelById]);
+
+  const settingsAvailableVersion = useMemo(
+    () =>
+      getSettingsAvailableVersion({
+        availableVersion: updateAvailableVersion,
+        ignoredVersion: ignoredUpdateVersion,
+      }),
+    [ignoredUpdateVersion, updateAvailableVersion],
+  );
+
+  const updateViewState = useMemo(
+    () =>
+      getUpdateViewState({
+        isChecking: updateChecking,
+        isInstalling: updateInstalling,
+        isDone: updateDone,
+        error: updateError,
+        availableVersion: settingsAvailableVersion,
+        manualCheckCompleted: updateCheckCompleted,
+      }),
+    [
+      settingsAvailableVersion,
+      updateCheckCompleted,
+      updateChecking,
+      updateDone,
+      updateError,
+      updateInstalling,
+    ],
+  );
+
+  const showSharedUpdateModal = useMemo(
+    () =>
+      shouldShowSharedUpdateModal({
+        modalVersion: updateModalVersion,
+        isInstalling: updateInstalling,
+        isDone: updateDone,
+      }),
+    [updateDone, updateInstalling, updateModalVersion],
+  );
 
   // Handlers
   const handleCancelLoading = useCallback(() => {
-    void invokeTauri('cancel_current_operation').catch(() => {})
-    setLoading(false)
-    setLoadingStartAt(null)
-    setActionMessage(null)
-  }, [invokeTauri])
+    void invokeTauri("cancel_current_operation").catch(() => {});
+    setLoading(false);
+    setLoadingStartAt(null);
+    setActionMessage(null);
+  }, [invokeTauri]);
 
   const handleOpenSettings = useCallback(() => {
-    setActiveView('settings')
-  }, [])
+    setActiveView("settings");
+  }, []);
 
   const handleCloseSettings = useCallback(() => {
-    setActiveView('myskills')
-  }, [])
+    setActiveView("myskills");
+  }, []);
 
   const handleThemeChange = useCallback(
-    (nextTheme: 'system' | 'light' | 'dark') => {
-      setThemePreference(nextTheme)
+    (nextTheme: "system" | "light" | "dark") => {
+      setThemePreference(nextTheme);
     },
     [setThemePreference],
-  )
+  );
 
   const loadFeaturedSkills = useCallback(async () => {
-    if (featuredSkills.length > 0) return
-    setFeaturedLoading(true)
+    if (featuredSkills.length > 0) return;
+    setFeaturedLoading(true);
     try {
-      const result = await invokeTauri<FeaturedSkillDto[]>('get_featured_skills')
-      setFeaturedSkills(result)
+      const result = await invokeTauri<FeaturedSkillDto[]>(
+        "get_featured_skills",
+      );
+      setFeaturedSkills(result);
     } catch {
       // silent
     } finally {
-      setFeaturedLoading(false)
+      setFeaturedLoading(false);
     }
-  }, [featuredSkills.length, invokeTauri])
+  }, [featuredSkills.length, invokeTauri]);
 
   const handleViewChange = useCallback(
-    (view: 'myskills' | 'explore') => {
-      setActiveView(view)
-      if (view === 'explore') {
-        loadFeaturedSkills()
+    (view: "myskills" | "explore") => {
+      setActiveView(view);
+      if (view === "explore") {
+        loadFeaturedSkills();
       }
-      if (view === 'myskills') {
-        setDetailSkill(null)
+      if (view === "myskills") {
+        setDetailSkill(null);
       }
     },
     [loadFeaturedSkills],
-  )
+  );
 
   const handleOpenDetail = useCallback((skill: ManagedSkill) => {
-    setDetailSkill(skill)
-    setActiveView('detail')
-  }, [])
+    setDetailSkill(skill);
+    setActiveView("detail");
+  }, []);
 
   const handleBackToList = useCallback(() => {
-    setDetailSkill(null)
-    setActiveView('myskills')
-  }, [])
+    setDetailSkill(null);
+    setActiveView("myskills");
+  }, []);
 
   const handleExploreFilterChange = useCallback(
     (value: string) => {
-      setExploreFilter(value)
+      setExploreFilter(value);
       if (searchTimerRef.current) {
-        clearTimeout(searchTimerRef.current)
-        searchTimerRef.current = null
+        clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = null;
       }
       if (value.trim().length < 2) {
-        setSearchResults([])
-        setSearchLoading(false)
-        return
+        setSearchResults([]);
+        setSearchLoading(false);
+        return;
       }
-      setSearchLoading(true)
+      setSearchLoading(true);
       searchTimerRef.current = setTimeout(async () => {
         try {
           const results = await invokeTauri<OnlineSkillDto[]>(
-            'search_skills_online',
+            "search_skills_online",
             { query: value.trim(), limit: 20 },
-          )
-          setSearchResults(results)
+          );
+          setSearchResults(results);
         } catch {
-          toast.error(t('searchError'))
-          setSearchResults([])
+          toast.error(t("searchError"));
+          setSearchResults([]);
         } finally {
-          setSearchLoading(false)
+          setSearchLoading(false);
         }
-      }, 500)
+      }, 500);
     },
     [invokeTauri, t],
-  )
+  );
 
   const handleOpenAdd = useCallback(() => {
-    setShowAddModal(true)
-  }, [setShowAddModal])
+    setShowAddModal(true);
+  }, [setShowAddModal]);
 
-  const handleSortChange = useCallback((value: 'updated' | 'name') => {
-    setSortBy(value)
-  }, [])
+  const handleSortChange = useCallback((value: "updated" | "name") => {
+    setSortBy(value);
+  }, []);
 
   const handleSearchChange = useCallback((value: string) => {
-    setSearchQuery(value)
-  }, [])
+    setSearchQuery(value);
+  }, []);
 
   const handleSyncTargetChange = useCallback(
     (toolId: string, checked: boolean) => {
-      const shared = sharedToolIdsByToolId[toolId] ?? [toolId]
+      const shared = sharedToolIdsByToolId[toolId] ?? [toolId];
       if (shared.length > 1) {
-        const others = shared.filter((id) => id !== toolId)
-        const otherLabels = others.map((id) => toolLabelById[id] ?? id).join(', ')
+        const others = shared.filter((id) => id !== toolId);
+        const otherLabels = others
+          .map((id) => toolLabelById[id] ?? id)
+          .join(", ");
         const ok = window.confirm(
-          t('sharedDirConfirm', {
+          t("sharedDirConfirm", {
             tool: toolLabelById[toolId] ?? toolId,
             others: otherLabels,
           }),
-        )
-        if (!ok) return
+        );
+        if (!ok) return;
       }
       setSyncTargets((prev) => {
-        const next = { ...prev }
-        for (const id of shared) next[id] = checked
-        return next
-      })
+        const next = { ...prev };
+        for (const id of shared) next[id] = checked;
+        return next;
+      });
     },
     [sharedToolIdsByToolId, t, toolLabelById],
-  )
+  );
 
-  const handleToggleAllGitCandidates = useCallback((checked: boolean) => {
-    setGitCandidateSelected(
-      Object.fromEntries(gitCandidates.map((c) => [c.subpath, checked])),
-    )
-  }, [gitCandidates, setGitCandidateSelected])
+  const handleToggleAllGitCandidates = useCallback(
+    (checked: boolean) => {
+      setGitCandidateSelected(
+        Object.fromEntries(gitCandidates.map((c) => [c.subpath, checked])),
+      );
+    },
+    [gitCandidates, setGitCandidateSelected],
+  );
 
   const handleToggleAllLocalCandidates = useCallback(
     (checked: boolean) => {
@@ -510,1157 +650,295 @@ function App() {
         Object.fromEntries(
           localCandidates.map((c) => [c.subpath, c.valid && checked]),
         ),
-      )
+      );
     },
     [localCandidates, setLocalCandidateSelected],
-  )
+  );
 
   const handleToggleGitCandidate = useCallback(
     (subpath: string, checked: boolean) => {
       setGitCandidateSelected((prev: Record<string, boolean>) => ({
         ...prev,
         [subpath]: checked,
-      }))
+      }));
     },
     [setGitCandidateSelected],
-  )
+  );
 
   const handleToggleLocalCandidate = useCallback(
     (subpath: string, checked: boolean) => {
       setLocalCandidateSelected((prev: Record<string, boolean>) => ({
         ...prev,
         [subpath]: checked,
-      }))
+      }));
     },
     [setLocalCandidateSelected],
-  )
+  );
 
-  const handleToggleGroup = useCallback((groupName: string, checked: boolean) => {
-    setSelected((prev) => ({
-      ...prev,
-      [groupName]: checked,
-    }))
-  }, [])
+  const handleToggleGroup = useCallback(
+    (groupName: string, checked: boolean) => {
+      setSelected((prev) => ({
+        ...prev,
+        [groupName]: checked,
+      }));
+    },
+    [],
+  );
 
   const handleSelectVariant = useCallback((groupName: string, path: string) => {
     setVariantChoice((prev) => ({
       ...prev,
       [groupName]: path,
-    }))
-  }, [])
+    }));
+  }, []);
 
   const handleRefresh = useCallback(() => {
-    void loadManagedSkills()
-  }, [loadManagedSkills])
+    void loadManagedSkills();
+  }, [loadManagedSkills]);
 
   const handleReviewImport = useCallback(async () => {
     if (plan) {
-      setShowImportModal(true)
-      return
+      setShowImportModal(true);
+      return;
     }
-    const result = await loadPlan()
+    const result = await loadPlan();
     if (result) {
-      setShowImportModal(true)
+      setShowImportModal(true);
     }
-  }, [loadPlan, plan, setShowImportModal])
+  }, [loadPlan, plan, setShowImportModal]);
 
   const toggleAll = useCallback(
     (checked: boolean) => {
-      if (!plan) return
-      const next: Record<string, boolean> = {}
+      if (!plan) return;
+      const next: Record<string, boolean> = {};
       plan.groups.forEach((group) => {
-        next[group.name] = checked
-      })
-      setSelected(next)
+        next[group.name] = checked;
+      });
+      setSelected(next);
     },
     [plan],
-  )
+  );
 
   const handlePickLocalPath = useCallback(async () => {
-    if (!isTauri) return
+    if (!isTauri) return;
     try {
-      const { open } = await import('@tauri-apps/plugin-dialog')
+      const { open } = await import("@tauri-apps/plugin-dialog");
       const selected = await open({
         directory: true,
         multiple: false,
-        title: t('selectLocalFolder'),
-      })
-      if (!selected || Array.isArray(selected)) return
-      setLocalPath(selected)
+        title: t("selectLocalFolder"),
+      });
+      if (!selected || Array.isArray(selected)) return;
+      setLocalPath(selected);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(err instanceof Error ? err.message : String(err));
     }
-  }, [isTauri, t, setLocalPath])
+  }, [isTauri, t, setLocalPath]);
 
   // Import handler
   const handleImport = useCallback(async () => {
-    if (!plan) return
-    setLoading(true)
-    setLoadingStartAt(Date.now())
-    setError(null)
-    setActionMessage(null)
-    try {
-      const collectedErrors: { title: string; message: string }[] = []
-      for (const group of plan.groups) {
-        if (!selected[group.name]) continue
-        const chosenPath = variantChoice[group.name] ?? group.variants[0]?.path
-        if (!chosenPath) continue
-        const chosenVariantTool =
-          group.variants.find((v) => v.path === chosenPath)?.tool ?? null
-
-        setActionMessage(t('actions.importExisting', { name: group.name }))
-        const installResult = await invokeTauri<{
-          skill_id: string
-          central_path: string
-        }>('import_existing_skill', {
-          sourcePath: chosenPath,
-          name: group.name,
-        })
-
-        const selectedInstalledIds = tools
-          .filter((tool) => syncTargets[tool.id] && isInstalled(tool.id))
-          .map((t) => t.id)
-        const targets = uniqueToolIdsBySkillsDir(selectedInstalledIds)
-          .map((id) => tools.find((t) => t.id === id))
-          .filter(Boolean) as ToolOption[]
-        for (const tool of targets) {
-          setActionMessage(
-            t('actions.syncing', { name: group.name, tool: tool.label }),
-          )
-          try {
-            const overwrite = Boolean(
-              chosenVariantTool &&
-                (chosenVariantTool === tool.id ||
-                  (sharedToolIdsByToolId[chosenVariantTool] ?? []).includes(
-                    tool.id,
-                  )),
-            )
-            await invokeTauri('sync_skill_to_tool', {
-              sourcePath: installResult.central_path,
-              skillId: installResult.skill_id,
-              tool: tool.id,
-              name: group.name,
-              overwrite,
-            })
-          } catch (err) {
-            const raw = err instanceof Error ? err.message : String(err)
-            if (raw.startsWith('TARGET_EXISTS|')) {
-              const targetPath = raw.split('|')[1] ?? ''
-              collectedErrors.push({
-                title: t('errors.syncFailedTitle', {
-                  name: group.name,
-                  tool: tool.label,
-                }),
-                message: t('errors.syncTargetExistsMessage', {
-                  path: targetPath,
-                }),
-              })
-            } else {
-              collectedErrors.push({
-                title: t('errors.syncFailedTitle', {
-                  name: group.name,
-                  tool: tool.label,
-                }),
-                message: raw,
-              })
-            }
-          }
-        }
-      }
-
-      setActionMessage(t('status.importCompleted'))
-      setSuccessToastMessage(t('status.importCompleted'))
-      setActionMessage(null)
-      await loadManagedSkills()
-      await loadPlan()
-      if (collectedErrors.length > 0) {
-        toast.error(
-          `${collectedErrors[0].title}: ${collectedErrors[0].message}${
-            collectedErrors.length > 1
-              ? t('errors.moreCount', { count: collectedErrors.length - 1 })
-              : ''
-          }`,
-          { duration: 3200 },
-        )
-      } else {
-        setShowImportModal(false)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setLoading(false)
-      setLoadingStartAt(null)
-    }
+    if (!plan) return;
+    await skillActions.handleImport({
+      plan,
+      selected,
+      variantChoice,
+      onComplete: () => setShowImportModal(false),
+    });
+    await loadPlan();
   }, [
     plan,
     selected,
     variantChoice,
-    tools,
-    syncTargets,
-    isInstalled,
-    uniqueToolIdsBySkillsDir,
-    sharedToolIdsByToolId,
-    invokeTauri,
-    loadManagedSkills,
+    skillActions,
     loadPlan,
-    t,
     setShowImportModal,
-  ])
+  ]);
 
   // Local skill creation
   const handleCreateLocal = useCallback(async () => {
-    if (!localPath.trim()) {
-      setError(t('errors.requireLocalPath'))
-      return
-    }
-    setLoading(true)
-    setLoadingStartAt(Date.now())
-    setError(null)
-    setActionMessage(t('actions.creatingLocalSkill'))
-    try {
-      const basePath = localPath.trim()
-      const candidates = await invokeTauri<LocalSkillCandidate[]>(
-        'list_local_skills_cmd',
-        { basePath },
-      )
-      if (candidates.length === 0) {
-        throw new Error(t('errors.noSkillsFoundLocal'))
-      }
-      if (candidates.length === 1 && candidates[0].valid) {
-        const desiredName = localName.trim() || candidates[0].name
-        if (isSkillNameTaken(desiredName)) {
-          setError(t('errors.skillAlreadyExists', { name: desiredName }))
-          return
-        }
-        const created = await invokeTauri<InstallResultDto>(
-          'install_local_selection',
-          {
-            basePath,
-            subpath: candidates[0].subpath,
-            name: localName.trim() || undefined,
-          },
-        )
-        {
-          const selectedInstalledIds = tools
-            .filter((tool) => syncTargets[tool.id] && isInstalled(tool.id))
-            .map((t) => t.id)
-          const targets = uniqueToolIdsBySkillsDir(selectedInstalledIds)
-            .map((id) => tools.find((t) => t.id === id))
-            .filter(Boolean) as ToolOption[]
-          if (targets.length === 0) {
-            setError(t('errors.noSyncTargets'))
-          } else {
-            const collectedErrors: { title: string; message: string }[] = []
-            for (let i = 0; i < targets.length; i++) {
-              const tool = targets[i]
-              setActionMessage(
-                t('actions.syncStep', {
-                  index: i + 1,
-                  total: targets.length,
-                  name: created.name,
-                  tool: tool.label,
-                }),
-              )
-              try {
-                await invokeTauri('sync_skill_to_tool', {
-                  sourcePath: created.central_path,
-                  skillId: created.skill_id,
-                  tool: tool.id,
-                  name: created.name,
-                })
-              } catch (err) {
-                const raw = err instanceof Error ? err.message : String(err)
-                collectedErrors.push({
-                  title: t('errors.syncFailedTitle', {
-                    name: created.name,
-                    tool: tool.label,
-                  }),
-                  message: raw,
-                })
-              }
-            }
-            if (collectedErrors.length > 0) {
-              toast.error(
-                `${collectedErrors[0].title}: ${collectedErrors[0].message}`,
-                { duration: 3200 },
-              )
-            }
-          }
-        }
-        setLocalPath('')
-        setLocalName('')
-        setActionMessage(t('status.localSkillCreated'))
-        setSuccessToastMessage(t('status.localSkillCreated'))
-        setActionMessage(null)
-        setShowAddModal(false)
-        await loadManagedSkills()
-      } else {
-        setLocalCandidatesBasePath(basePath)
-        setLocalCandidates(candidates)
-        setLocalCandidateSelected(
-          Object.fromEntries(candidates.map((c) => [c.subpath, c.valid])),
-        )
-        setShowLocalPickModal(true)
-        setActionMessage(null)
-        setLoading(false)
-        setLoadingStartAt(null)
-        return
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setLoading(false)
-      setLoadingStartAt(null)
-    }
-  }, [
-    localPath,
-    localName,
-    invokeTauri,
-    tools,
-    syncTargets,
-    isInstalled,
-    uniqueToolIdsBySkillsDir,
-    isSkillNameTaken,
-    loadManagedSkills,
-    t,
-    setLocalPath,
-    setLocalName,
-    setLocalCandidates,
-    setLocalCandidatesBasePath,
-    setLocalCandidateSelected,
-    setShowLocalPickModal,
-    setShowAddModal,
-  ])
+    await skillActions.handleCreateLocal({
+      localPath,
+      localName,
+    });
+  }, [localPath, localName, skillActions]);
 
   // Git skill creation
   const handleCreateGit = useCallback(async () => {
-    if (!gitUrl.trim()) {
-      setError(t('errors.requireGitUrl'))
-      return
-    }
-    setLoading(true)
-    setLoadingStartAt(Date.now())
-    setError(null)
-    setActionMessage(t('actions.creatingGitSkill'))
-    try {
-      const url = gitUrl.trim()
-      const isFolderUrl = url.includes('/tree/') || url.includes('/blob/')
-
-      if (isFolderUrl) {
-        const created = await invokeTauri<InstallResultDto>('install_git', {
-          repoUrl: url,
-          name: gitName.trim() || undefined,
-        })
-        {
-          const selectedInstalledIds = tools
-            .filter((tool) => syncTargets[tool.id] && isInstalled(tool.id))
-            .map((t) => t.id)
-          const targets = uniqueToolIdsBySkillsDir(selectedInstalledIds)
-            .map((id) => tools.find((t) => t.id === id))
-            .filter(Boolean) as ToolOption[]
-          if (targets.length === 0) {
-            setError(t('errors.noSyncTargets'))
-          } else {
-            const collectedErrors: { title: string; message: string }[] = []
-            for (let i = 0; i < targets.length; i++) {
-              const tool = targets[i]
-              setActionMessage(
-                t('actions.syncStep', {
-                  index: i + 1,
-                  total: targets.length,
-                  name: created.name,
-                  tool: tool.label,
-                }),
-              )
-              try {
-                await invokeTauri('sync_skill_to_tool', {
-                  sourcePath: created.central_path,
-                  skillId: created.skill_id,
-                  tool: tool.id,
-                  name: created.name,
-                })
-              } catch (err) {
-                const raw = err instanceof Error ? err.message : String(err)
-                collectedErrors.push({
-                  title: t('errors.syncFailedTitle', {
-                    name: created.name,
-                    tool: tool.label,
-                  }),
-                  message: raw,
-                })
-              }
-            }
-            if (collectedErrors.length > 0) {
-              toast.error(
-                `${collectedErrors[0].title}: ${collectedErrors[0].message}`,
-                { duration: 3200 },
-              )
-            }
-          }
-        }
-      } else {
-        const candidates = await invokeTauri<GitSkillCandidate[]>(
-          'list_git_skills_cmd',
-          { repoUrl: url },
-        )
-        if (candidates.length === 0) {
-          throw new Error(t('errors.noSkillsFoundWithHint'))
-        }
-        if (candidates.length === 1) {
-          if (isSkillNameTaken(candidates[0].name)) {
-            setError(t('errors.skillAlreadyExists', { name: candidates[0].name }))
-            return
-          }
-          const created = await invokeTauri<InstallResultDto>(
-            'install_git_selection',
-            {
-              repoUrl: url,
-              subpath: candidates[0].subpath,
-              name: gitName.trim() || undefined,
-            },
-          )
-          {
-            const selectedInstalledIds = tools
-              .filter((tool) => syncTargets[tool.id] && isInstalled(tool.id))
-              .map((t) => t.id)
-            const targets = uniqueToolIdsBySkillsDir(selectedInstalledIds)
-              .map((id) => tools.find((t) => t.id === id))
-              .filter(Boolean) as ToolOption[]
-            if (targets.length === 0) {
-              setError(t('errors.noSyncTargets'))
-            } else {
-              const collectedErrors: { title: string; message: string }[] = []
-              for (let i = 0; i < targets.length; i++) {
-                const tool = targets[i]
-                setActionMessage(
-                  t('actions.syncStep', {
-                    index: i + 1,
-                    total: targets.length,
-                    name: created.name,
-                    tool: tool.label,
-                  }),
-                )
-                try {
-                  await invokeTauri('sync_skill_to_tool', {
-                    sourcePath: created.central_path,
-                    skillId: created.skill_id,
-                    tool: tool.id,
-                    name: created.name,
-                  })
-                } catch (err) {
-                  const raw = err instanceof Error ? err.message : String(err)
-                  collectedErrors.push({
-                    title: t('errors.syncFailedTitle', {
-                      name: created.name,
-                      tool: tool.label,
-                    }),
-                    message: raw,
-                  })
-                }
-              }
-              if (collectedErrors.length > 0) {
-                toast.error(
-                  `${collectedErrors[0].title}: ${collectedErrors[0].message}`,
-                  { duration: 3200 },
-                )
-              }
-            }
-          }
-        } else if (autoSelectSkillName) {
-          const target = autoSelectSkillName.toLowerCase()
-          const containMatches = candidates.filter((c) => {
-            const n = c.name.toLowerCase()
-            return target.includes(n) || n.includes(target)
-          })
-          const match =
-            candidates.find((c) => c.name.toLowerCase() === target) ??
-            (containMatches.length === 1 ? containMatches[0] : undefined)
-          setAutoSelectSkillName(null)
-          if (match) {
-            if (isSkillNameTaken(match.name)) {
-              setError(t('errors.skillAlreadyExists', { name: match.name }))
-              return
-            }
-            const created = await invokeTauri<InstallResultDto>(
-              'install_git_selection',
-              {
-                repoUrl: url,
-                subpath: match.subpath,
-                name: gitName.trim() || undefined,
-              },
-            )
-            {
-              const selectedInstalledIds = tools
-                .filter((tool) => syncTargets[tool.id] && isInstalled(tool.id))
-                .map((t) => t.id)
-              const targets = uniqueToolIdsBySkillsDir(selectedInstalledIds)
-                .map((id) => tools.find((t) => t.id === id))
-                .filter(Boolean) as ToolOption[]
-              if (targets.length === 0) {
-                setError(t('errors.noSyncTargets'))
-              } else {
-                const collectedErrors: { title: string; message: string }[] = []
-                for (let i = 0; i < targets.length; i++) {
-                  const tool = targets[i]
-                  setActionMessage(
-                    t('actions.syncStep', {
-                      index: i + 1,
-                      total: targets.length,
-                      name: created.name,
-                      tool: tool.label,
-                    }),
-                  )
-                  try {
-                    await invokeTauri('sync_skill_to_tool', {
-                      sourcePath: created.central_path,
-                      skillId: created.skill_id,
-                      tool: tool.id,
-                      name: created.name,
-                    })
-                  } catch (err) {
-                    const raw = err instanceof Error ? err.message : String(err)
-                    collectedErrors.push({
-                      title: t('errors.syncFailedTitle', {
-                        name: created.name,
-                        tool: tool.label,
-                      }),
-                      message: raw,
-                    })
-                  }
-                }
-                if (collectedErrors.length > 0) {
-                  toast.error(
-                    `${collectedErrors[0].title}: ${collectedErrors[0].message}`,
-                    { duration: 3200 },
-                  )
-                }
-              }
-            }
-          } else {
-            setGitCandidatesRepoUrl(url)
-            setGitCandidates(candidates)
-            setGitCandidateSelected(
-              Object.fromEntries(candidates.map((c) => [c.subpath, true])),
-            )
-            setShowGitPickModal(true)
-            setActionMessage(null)
-            setLoading(false)
-            setLoadingStartAt(null)
-            return
-          }
-        } else {
-          setGitCandidatesRepoUrl(url)
-          setGitCandidates(candidates)
-          setGitCandidateSelected(
-            Object.fromEntries(candidates.map((c) => [c.subpath, true])),
-          )
-          setShowGitPickModal(true)
-          setActionMessage(null)
-          setLoading(false)
-          setLoadingStartAt(null)
-          return
-        }
-      }
-      setGitUrl('')
-      setGitName('')
-      setActionMessage(t('status.gitSkillCreated'))
-      setSuccessToastMessage(t('status.gitSkillCreated'))
-      setActionMessage(null)
-      setShowAddModal(false)
-      await loadManagedSkills()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setLoading(false)
-      setLoadingStartAt(null)
-    }
-  }, [
-    gitUrl,
-    gitName,
-    autoSelectSkillName,
-    invokeTauri,
-    tools,
-    syncTargets,
-    isInstalled,
-    uniqueToolIdsBySkillsDir,
-    isSkillNameTaken,
-    loadManagedSkills,
-    t,
-    setGitUrl,
-    setGitName,
-    setGitCandidates,
-    setGitCandidatesRepoUrl,
-    setGitCandidateSelected,
-    setShowGitPickModal,
-    setShowAddModal,
-  ])
+    await skillActions.handleCreateGit({
+      gitUrl,
+      gitName,
+      autoSelectSkillName,
+    });
+  }, [gitUrl, gitName, autoSelectSkillName, skillActions]);
 
   // Explore install handler
   const handleExploreInstall = useCallback(
     (sourceUrl: string, skillName?: string) => {
-      setGitUrl(sourceUrl)
-      if (skillName) setAutoSelectSkillName(skillName)
-      if (toolStatus) {
-        const targets: Record<string, boolean> = {}
-        for (const id of toolStatus.installed) {
-          targets[id] = true
-        }
-        setSyncTargets(targets)
-      }
-      exploreInstallUrlRef.current = sourceUrl
-      setExploreInstallTrigger((n) => n + 1)
-    },
-    [toolStatus, setGitUrl],
-  )
+      const nextState = buildExploreInstallState({
+        sourceUrl,
+        skillName,
+        installedToolIds: toolStatus?.installed ?? [],
+      });
 
-  useEffect(() => {
-    if (exploreInstallTrigger > 0 && exploreInstallUrlRef.current && !loading) {
-      exploreInstallUrlRef.current = null
-      void handleCreateGit()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exploreInstallTrigger])
+      setGitUrl(nextState.gitUrl);
+      setAutoSelectSkillName(nextState.autoSelectSkillName);
+      setSyncTargets(nextState.syncTargets);
+      void skillActions.handleCreateGit({
+        gitUrl: nextState.gitUrl,
+        gitName: "",
+        autoSelectSkillName: nextState.autoSelectSkillName,
+        syncTargetOverrides: nextState.syncTargets,
+      });
+    },
+    [toolStatus, skillActions, setGitUrl],
+  );
 
   // Install selected local candidates
   const handleInstallSelectedLocalCandidates = useCallback(async () => {
-    const selected = localCandidates.filter(
+    const selectedCandidates = localCandidates.filter(
       (c) => c.valid && localCandidateSelected[c.subpath],
-    )
-    if (selected.length === 0) {
-      setError(t('errors.selectAtLeastOneSkill'))
-      return
-    }
-    if (selected.length > 1 && localName.trim()) {
-      setError(t('errors.multiSelectNoCustomName'))
-      return
-    }
-    if (selected.length > 1) {
-      const seen = new Set<string>()
-      const dup = selected.find((c) => {
-        if (seen.has(c.name)) return true
-        seen.add(c.name)
-        return false
-      })
-      if (dup) {
-        setError(t('errors.duplicateSelectedSkills', { name: dup.name }))
-        return
-      }
-    }
-    const desiredName =
-      selected.length === 1 && localName.trim()
-        ? localName.trim()
-        : selected[0].name
-    if (selected.length === 1 && isSkillNameTaken(desiredName)) {
-      setError(t('errors.skillAlreadyExists', { name: desiredName }))
-      return
-    }
-    const duplicated = selected.find((c) => isSkillNameTaken(c.name))
-    if (selected.length > 1 && duplicated) {
-      setError(t('errors.skillAlreadyExists', { name: duplicated.name }))
-      return
-    }
-
-    setLoading(true)
-    setLoadingStartAt(Date.now())
-    setError(null)
-    try {
-      const collectedErrors: { title: string; message: string }[] = []
-      for (let i = 0; i < selected.length; i++) {
-        const candidate = selected[i]
-        setActionMessage(
-          t('actions.importStep', {
-            index: i + 1,
-            total: selected.length,
-            name: candidate.name,
-          }),
-        )
-        try {
-          const created = await invokeTauri<InstallResultDto>(
-            'install_local_selection',
-            {
-              basePath: localCandidatesBasePath,
-              subpath: candidate.subpath,
-              name: localName.trim() || undefined,
-            },
-          )
-          {
-            const selectedInstalledIds = tools
-              .filter((tool) => syncTargets[tool.id] && isInstalled(tool.id))
-              .map((t) => t.id)
-            const targets = uniqueToolIdsBySkillsDir(selectedInstalledIds)
-              .map((id) => tools.find((t) => t.id === id))
-              .filter(Boolean) as ToolOption[]
-            if (targets.length === 0) {
-              collectedErrors.push({
-                title: t('errors.unsyncedTitle', { name: created.name }),
-                message: t('errors.noSyncTargets'),
-              })
-            } else {
-              for (let ti = 0; ti < targets.length; ti++) {
-                const tool = targets[ti]
-                setActionMessage(
-                  t('actions.syncStep', {
-                    index: ti + 1,
-                    total: targets.length,
-                    name: created.name,
-                    tool: tool.label,
-                  }),
-                )
-                try {
-                  await invokeTauri('sync_skill_to_tool', {
-                    sourcePath: created.central_path,
-                    skillId: created.skill_id,
-                    tool: tool.id,
-                    name: created.name,
-                  })
-                } catch (err) {
-                  const raw = err instanceof Error ? err.message : String(err)
-                  collectedErrors.push({
-                    title: t('errors.syncFailedTitle', {
-                      name: created.name,
-                      tool: tool.label,
-                    }),
-                    message: raw,
-                  })
-                }
-              }
-            }
-          }
-        } catch (err) {
-          const raw = err instanceof Error ? err.message : String(err)
-          collectedErrors.push({
-            title: t('errors.importFailedTitle', { name: candidate.name }),
-            message: raw,
-          })
-        }
-      }
-
-      setShowLocalPickModal(false)
-      setLocalCandidates([])
-      setLocalCandidateSelected({})
-      setLocalCandidatesBasePath('')
-      setLocalPath('')
-      setLocalName('')
-      setActionMessage(t('status.selectedSkillsInstalled'))
-      setSuccessToastMessage(t('status.selectedSkillsInstalled'))
-      setActionMessage(null)
-      setShowAddModal(false)
-      await loadManagedSkills()
-      if (collectedErrors.length > 0) {
-        toast.error(
-          `${collectedErrors[0].title}: ${collectedErrors[0].message}`,
-          { duration: 3200 },
-        )
-      }
-    } finally {
-      setLoading(false)
-      setLoadingStartAt(null)
-    }
+    );
+    await skillActions.handleInstallSelectedLocalCandidates({
+      selectedCandidates,
+      localName,
+      localCandidatesBasePath,
+    });
   }, [
     localCandidates,
     localCandidateSelected,
     localName,
     localCandidatesBasePath,
-    invokeTauri,
-    tools,
-    syncTargets,
-    isInstalled,
-    uniqueToolIdsBySkillsDir,
-    isSkillNameTaken,
-    loadManagedSkills,
-    t,
-    setShowLocalPickModal,
-    setLocalCandidates,
-    setLocalCandidateSelected,
-    setLocalCandidatesBasePath,
-    setLocalPath,
-    setLocalName,
-    setShowAddModal,
-  ])
+    skillActions,
+  ]);
 
   // Install selected git candidates
   const handleInstallSelectedCandidates = useCallback(async () => {
-    const selected = gitCandidates.filter((c) => gitCandidateSelected[c.subpath])
-    if (selected.length === 0) {
-      setError(t('errors.selectAtLeastOneSkill'))
-      return
-    }
-    const duplicated = selected.find((c) => isSkillNameTaken(c.name))
-    if (duplicated) {
-      setError(t('errors.skillAlreadyExists', { name: duplicated.name }))
-      return
-    }
-    if (selected.length > 1 && gitName.trim()) {
-      setError(t('errors.multiSelectNoCustomName'))
-      return
-    }
-
-    setLoading(true)
-    setLoadingStartAt(Date.now())
-    setError(null)
-    try {
-      const collectedErrors: { title: string; message: string }[] = []
-      for (let i = 0; i < selected.length; i++) {
-        const candidate = selected[i]
-        setActionMessage(
-          t('actions.importStep', {
-            index: i + 1,
-            total: selected.length,
-            name: candidate.name,
-          }),
-        )
-        try {
-          const created = await invokeTauri<InstallResultDto>(
-            'install_git_selection',
-            {
-              repoUrl: gitCandidatesRepoUrl,
-              subpath: candidate.subpath,
-              name: gitName.trim() || undefined,
-            },
-          )
-          {
-            const selectedInstalledIds = tools
-              .filter((tool) => syncTargets[tool.id] && isInstalled(tool.id))
-              .map((t) => t.id)
-            const targets = uniqueToolIdsBySkillsDir(selectedInstalledIds)
-              .map((id) => tools.find((t) => t.id === id))
-              .filter(Boolean) as ToolOption[]
-            if (targets.length === 0) {
-              collectedErrors.push({
-                title: t('errors.unsyncedTitle', { name: created.name }),
-                message: t('errors.noSyncTargets'),
-              })
-            } else {
-              for (let ti = 0; ti < targets.length; ti++) {
-                const tool = targets[ti]
-                setActionMessage(
-                  t('actions.syncStep', {
-                    index: ti + 1,
-                    total: targets.length,
-                    name: created.name,
-                    tool: tool.label,
-                  }),
-                )
-                try {
-                  await invokeTauri('sync_skill_to_tool', {
-                    sourcePath: created.central_path,
-                    skillId: created.skill_id,
-                    tool: tool.id,
-                    name: created.name,
-                  })
-                } catch (err) {
-                  const raw = err instanceof Error ? err.message : String(err)
-                  collectedErrors.push({
-                    title: t('errors.syncFailedTitle', {
-                      name: created.name,
-                      tool: tool.label,
-                    }),
-                    message: raw,
-                  })
-                }
-              }
-            }
-          }
-        } catch (err) {
-          const raw = err instanceof Error ? err.message : String(err)
-          collectedErrors.push({
-            title: t('errors.importFailedTitle', { name: candidate.name }),
-            message: raw,
-          })
-        }
-      }
-
-      setShowGitPickModal(false)
-      setGitCandidates([])
-      setGitCandidateSelected({})
-      setGitCandidatesRepoUrl('')
-      setGitUrl('')
-      setGitName('')
-      setActionMessage(t('status.selectedSkillsInstalled'))
-      setSuccessToastMessage(t('status.selectedSkillsInstalled'))
-      setActionMessage(null)
-      setShowAddModal(false)
-      await loadManagedSkills()
-      if (collectedErrors.length > 0) {
-        toast.error(
-          `${collectedErrors[0].title}: ${collectedErrors[0].message}`,
-          { duration: 3200 },
-        )
-      }
-    } finally {
-      setLoading(false)
-      setLoadingStartAt(null)
-    }
+    const selectedCandidates = gitCandidates.filter(
+      (c) => gitCandidateSelected[c.subpath],
+    );
+    await skillActions.handleInstallSelectedGitCandidates({
+      selectedCandidates,
+      gitName,
+      gitCandidatesRepoUrl,
+    });
   }, [
     gitCandidates,
     gitCandidateSelected,
     gitName,
     gitCandidatesRepoUrl,
-    invokeTauri,
-    tools,
-    syncTargets,
-    isInstalled,
-    uniqueToolIdsBySkillsDir,
-    isSkillNameTaken,
-    loadManagedSkills,
-    t,
-    setShowGitPickModal,
-    setGitCandidates,
-    setGitCandidateSelected,
-    setGitCandidatesRepoUrl,
-    setGitUrl,
-    setGitName,
-    setShowAddModal,
-  ])
+    skillActions,
+  ]);
 
   // Delete managed skill
-  const handleDeleteManaged = useCallback(async (skill: ManagedSkill) => {
-    setLoading(true)
-    setLoadingStartAt(Date.now())
-    setActionMessage(t('actions.removing', { name: skill.name }))
-    setError(null)
-    try {
-      await invokeTauri('delete_managed_skill', { skillId: skill.id })
-      setActionMessage(t('status.skillRemoved'))
-      setSuccessToastMessage(t('status.skillRemoved'))
-      setActionMessage(null)
-      await loadManagedSkills()
-      setPendingDeleteId(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setLoading(false)
-      setLoadingStartAt(null)
-    }
-  }, [invokeTauri, loadManagedSkills, t, setPendingDeleteId])
+  const handleDeleteManaged = useCallback(
+    async (skill: ManagedSkill) => {
+      await skillActions.handleDeleteManaged(skill, () =>
+        setPendingDeleteId(null),
+      );
+    },
+    [skillActions, setPendingDeleteId],
+  );
 
   // Sync all managed to tools
   const handleSyncAllManagedToTools = useCallback(
     async (toolIds: string[]) => {
-      if (managedSkills.length === 0) return
-      const installedIds = uniqueToolIdsBySkillsDir(
-        toolIds.filter((id) => isInstalled(id)),
-      )
-      if (installedIds.length === 0) return
-
-      setLoading(true)
-      setLoadingStartAt(Date.now())
-      setError(null)
-      try {
-        const collectedErrors: { title: string; message: string }[] = []
-        for (let si = 0; si < managedSkills.length; si++) {
-          const skill = managedSkills[si]
-          for (let ti = 0; ti < installedIds.length; ti++) {
-            const toolId = installedIds[ti]
-            const toolLabel = tools.find((t) => t.id === toolId)?.label ?? toolId
-            setActionMessage(
-              t('actions.syncStep', {
-                index: si + 1,
-                total: managedSkills.length,
-                name: skill.name,
-                tool: toolLabel,
-              }),
-            )
-            try {
-              await invokeTauri('sync_skill_to_tool', {
-                sourcePath: skill.central_path,
-                skillId: skill.id,
-                tool: toolId,
-                name: skill.name,
-              })
-            } catch (err) {
-              const raw = err instanceof Error ? err.message : String(err)
-              if (raw.startsWith('TOOL_NOT_INSTALLED|') || raw.startsWith('TOOL_NOT_WRITABLE|')) continue
-              collectedErrors.push({
-                title: t('errors.syncFailedTitle', {
-                  name: skill.name,
-                  tool: toolLabel,
-                }),
-                message: raw,
-              })
-            }
-          }
-        }
-        setActionMessage(t('status.syncCompleted'))
-        setSuccessToastMessage(t('status.syncCompleted'))
-        setActionMessage(null)
-        await loadManagedSkills()
-        if (collectedErrors.length > 0) {
-          toast.error(
-            `${collectedErrors[0].title}: ${collectedErrors[0].message}`,
-            { duration: 3200 },
-          )
-        }
-      } finally {
-        setLoading(false)
-        setLoadingStartAt(null)
-      }
+      await skillActions.handleSyncAllManagedToTools({
+        managedSkills,
+        toolIds,
+      });
     },
-    [
-      invokeTauri,
-      isInstalled,
-      loadManagedSkills,
-      managedSkills,
-      t,
-      tools,
-      uniqueToolIdsBySkillsDir,
-    ],
-  )
+    [managedSkills, skillActions],
+  );
 
   // Sync new tools
   const handleSyncAllNewTools = useCallback(() => {
-    if (!toolStatus) return
+    if (!toolStatus) return;
     setSyncTargets((prev) => {
-      const next = { ...prev }
+      const next = { ...prev };
       for (const id of toolStatus.newly_installed) {
-        const shared = sharedToolIdsByToolId[id] ?? [id]
-        for (const sid of shared) next[sid] = true
+        const shared = sharedToolIdsByToolId[id] ?? [id];
+        for (const sid of shared) next[sid] = true;
       }
-      return next
-    })
-    setShowNewToolsModal(false)
-    void handleSyncAllManagedToTools(toolStatus.newly_installed)
-  }, [handleSyncAllManagedToTools, sharedToolIdsByToolId, toolStatus, setShowNewToolsModal])
+      return next;
+    });
+    setShowNewToolsModal(false);
+    void handleSyncAllManagedToTools(toolStatus.newly_installed);
+  }, [
+    handleSyncAllManagedToTools,
+    sharedToolIdsByToolId,
+    toolStatus,
+    setShowNewToolsModal,
+  ]);
 
   // Toggle tool for skill
-  const runToggleToolForSkill = useCallback(
-    async (skill: ManagedSkill, toolId: string) => {
-      if (loading) return
-      const toolLabel = tools.find((t) => t.id === toolId)?.label ?? toolId
-      const target = skill.targets.find((t) => t.tool === toolId)
-      const synced = Boolean(target)
-
-      setLoading(true)
-      setLoadingStartAt(Date.now())
-      setError(null)
-      try {
-        if (synced) {
-          setActionMessage(
-            t('actions.unsyncing', { name: skill.name, tool: toolLabel }),
-          )
-          await invokeTauri('unsync_skill_from_tool', {
-            skillId: skill.id,
-            tool: toolId,
-          })
-        } else {
-          setActionMessage(
-            t('actions.syncing', { name: skill.name, tool: toolLabel }),
-          )
-          await invokeTauri('sync_skill_to_tool', {
-            sourcePath: skill.central_path,
-            skillId: skill.id,
-            tool: toolId,
-            name: skill.name,
-          })
-        }
-        const statusText = synced
-          ? t('status.syncDisabled')
-          : t('status.syncEnabled')
-        setActionMessage(statusText)
-        setSuccessToastMessage(statusText)
-        setActionMessage(null)
-        await loadManagedSkills()
-      } catch (err) {
-        const raw = err instanceof Error ? err.message : String(err)
-        if (raw.startsWith('TARGET_EXISTS|')) {
-          const targetPath = raw.split('|')[1] ?? ''
-          setError(t('errors.targetExistsDetail', { path: targetPath }))
-        } else if (raw.startsWith('TOOL_NOT_INSTALLED|')) {
-          setError(t('errors.toolNotInstalled'))
-        } else if (raw.startsWith('TOOL_NOT_WRITABLE|')) {
-          const parts = raw.split('|')
-          setError(t('errors.toolNotWritable', { tool: parts[1] ?? '', path: parts[2] ?? '' }))
-        } else {
-          setError(raw)
-        }
-      } finally {
-        setLoading(false)
-        setLoadingStartAt(null)
-      }
-    },
-    [invokeTauri, loadManagedSkills, loading, t, tools],
-  )
-
   const handleToggleToolForSkill = useCallback(
     (skill: ManagedSkill, toolId: string) => {
-      if (loading) return
-      const shared = sharedToolIdsByToolId[toolId] ?? null
-      if (shared && shared.length > 1) {
-        setPendingSharedToggle({ skill, toolId })
-        return
-      }
-      void runToggleToolForSkill(skill, toolId)
+      void skillActions.handleToggleToolForSkill({
+        skill,
+        toolId,
+        loading,
+        onSharedToggle: (s, t) =>
+          setPendingSharedToggle({ skill: s, toolId: t }),
+      });
     },
-    [loading, runToggleToolForSkill, sharedToolIdsByToolId, setPendingSharedToggle],
-  )
+    [loading, skillActions, setPendingSharedToggle],
+  );
 
   // Update managed skill
   const handleUpdateManaged = useCallback(
     async (skill: ManagedSkill) => {
-      setLoading(true)
-      setLoadingStartAt(Date.now())
-      setError(null)
-      try {
-        setActionMessage(t('actions.updating', { name: skill.name }))
-        await invokeTauri<UpdateResultDto>('update_managed_skill', { skillId: skill.id })
-        const updatedText = t('status.updated', { name: skill.name })
-        setActionMessage(updatedText)
-        setSuccessToastMessage(updatedText)
-        setActionMessage(null)
-        await loadManagedSkills()
-      } catch (err) {
-        const raw = err instanceof Error ? err.message : String(err)
-        setError(raw)
-      } finally {
-        setLoading(false)
-        setLoadingStartAt(null)
-      }
+      await skillActions.handleUpdateManaged(skill);
     },
-    [invokeTauri, loadManagedSkills, t],
-  )
+    [skillActions],
+  );
 
   const handleUpdateSkill = useCallback(
     (skill: ManagedSkill) => {
-      void handleUpdateManaged(skill)
+      void handleUpdateManaged(skill);
     },
     [handleUpdateManaged],
-  )
+  );
 
   // Shared confirm
   const handleSharedConfirm = useCallback(() => {
-    if (!pendingSharedToggle) return
-    const payload = pendingSharedToggle
-    setPendingSharedToggle(null)
-    void runToggleToolForSkill(payload.skill, payload.toolId)
-  }, [pendingSharedToggle, setPendingSharedToggle, runToggleToolForSkill])
+    if (!pendingSharedToggle) return;
+    const payload = pendingSharedToggle;
+    setPendingSharedToggle(null);
+    void skillActions.runToggleToolForSkill(payload.skill, payload.toolId);
+  }, [pendingSharedToggle, setPendingSharedToggle, skillActions]);
 
   // Update handlers
   const handleDismissUpdate = useCallback(() => {
-    setUpdateAvailableVersion(null)
-    setUpdateBody(null)
-  }, [])
+    setUpdateModalVersion(null);
+  }, []);
 
   const handleDismissUpdateForever = useCallback(() => {
     if (updateAvailableVersion) {
-      localStorage.setItem('skills-ignored-update-version', updateAvailableVersion)
+      localStorage.setItem(
+        "skills-ignored-update-version",
+        updateAvailableVersion,
+      );
+      setIgnoredUpdateVersion(updateAvailableVersion);
     }
-    setUpdateAvailableVersion(null)
-    setUpdateBody(null)
-  }, [updateAvailableVersion])
+    setUpdateModalVersion(null);
+  }, [updateAvailableVersion]);
 
   const handleUpdateNow = useCallback(async () => {
-    const update = updateObjRef.current
-    if (!update) return
-    setUpdateInstalling(true)
+    const update = updateObjRef.current;
+    if (!update) return;
+    setUpdateInstalling(true);
+    setUpdateError(null);
     try {
-      await update.downloadAndInstall()
-      setUpdateInstalling(false)
-      setUpdateDone(true)
+      await update.downloadAndInstall();
+      setUpdateInstalling(false);
+      setUpdateDone(true);
     } catch (err) {
-      setUpdateInstalling(false)
-      toast.error(err instanceof Error ? err.message : String(err), { duration: 3200 })
+      setUpdateInstalling(false);
+      const message = err instanceof Error ? err.message : String(err);
+      setUpdateError(message);
+      toast.error(message, { duration: 3200 });
     }
-  }, [])
+  }, []);
 
   // Render
   return (
@@ -1689,15 +967,20 @@ function App() {
       />
 
       <main className="skills-main">
-        {activeView === 'detail' && detailSkill ? (
+        {activeView === "detail" && detailSkill ? (
           <SkillDetailView
             skill={detailSkill}
             onBack={handleBackToList}
             invokeTauri={invokeTauri}
             formatRelative={formatRelative}
             t={t}
+            isDark={
+              themePreference === "system"
+                ? systemTheme === "dark"
+                : themePreference === "dark"
+            }
           />
-        ) : activeView === 'myskills' ? (
+        ) : activeView === "myskills" ? (
           <div className="dashboard-stack">
             <FilterBar
               sortBy={sortBy}
@@ -1724,7 +1007,7 @@ function App() {
               t={t}
             />
           </div>
-        ) : activeView === 'settings' ? (
+        ) : activeView === "settings" ? (
           <SettingsPage
             isTauri={isTauri}
             language={language}
@@ -1740,6 +1023,12 @@ function App() {
             onClearGitCacheNow={handleClearGitCacheNow}
             githubToken={githubToken}
             onGithubTokenChange={handleGithubTokenChange}
+            appVersion={appVersion}
+            updateViewState={updateViewState}
+            updateVersion={settingsAvailableVersion}
+            updateError={updateError}
+            onCheckForUpdates={handleCheckForUpdates}
+            onInstallUpdate={handleUpdateNow}
             onBack={handleCloseSettings}
             t={t}
           />
@@ -1780,7 +1069,7 @@ function App() {
         onGitUrlChange={setGitUrl}
         onGitNameChange={setGitName}
         onSyncTargetChange={handleSyncTargetChange}
-        onSubmit={addModalTab === 'local' ? handleCreateLocal : handleCreateGit}
+        onSubmit={addModalTab === "local" ? handleCreateLocal : handleCreateGit}
         t={t}
       />
 
@@ -1803,8 +1092,8 @@ function App() {
       <SharedDirModal
         open={Boolean(pendingSharedToggle)}
         loading={loading}
-        toolLabel={pendingSharedLabels?.toolLabel ?? ''}
-        otherLabels={pendingSharedLabels?.otherLabels ?? ''}
+        toolLabel={pendingSharedLabels?.toolLabel ?? ""}
+        otherLabels={pendingSharedLabels?.otherLabels ?? ""}
         onRequestClose={handleSharedCancel}
         onConfirm={handleSharedConfirm}
         t={t}
@@ -1825,7 +1114,7 @@ function App() {
         skillName={pendingDeleteSkill?.name ?? null}
         onRequestClose={handleCloseDelete}
         onConfirm={() => {
-          if (pendingDeleteSkill) void handleDeleteManaged(pendingDeleteSkill)
+          if (pendingDeleteSkill) void handleDeleteManaged(pendingDeleteSkill);
         }}
         t={t}
       />
@@ -1856,8 +1145,11 @@ function App() {
         t={t}
       />
 
-      {updateAvailableVersion && (
-        <div className="modal-backdrop" onClick={updateInstalling ? undefined : handleDismissUpdate}>
+      {showSharedUpdateModal && (
+        <div
+          className="modal-backdrop"
+          onClick={updateInstalling ? undefined : handleDismissUpdate}
+        >
           <div
             className="modal update-modal"
             role="dialog"
@@ -1869,18 +1161,20 @@ function App() {
                 className="modal-close update-modal-close"
                 type="button"
                 onClick={handleDismissUpdate}
-                aria-label={t('close')}
+                aria-label={t("close")}
               >
                 ✕
               </button>
             )}
             <div className="update-modal-body">
               <div className="update-modal-title">
-                {updateDone ? t('updateInstalledRestart') : t('updateAvailable')}
+                {updateDone
+                  ? t("updateInstalledRestart")
+                  : t("updateAvailable")}
               </div>
               {!updateDone && (
                 <div className="update-modal-text">
-                  {t('updateBannerText', { version: updateAvailableVersion })}
+                  {t("updateBannerText", { version: updateModalVersion })}
                 </div>
               )}
               {!updateDone && updateBody && (
@@ -1896,7 +1190,7 @@ function App() {
                   type="button"
                   onClick={handleDismissUpdate}
                 >
-                  {t('done')}
+                  {t("done")}
                 </button>
               ) : (
                 <>
@@ -1906,7 +1200,7 @@ function App() {
                     disabled={updateInstalling}
                     onClick={handleUpdateNow}
                   >
-                    {updateInstalling ? t('installingUpdate') : t('updateNow')}
+                    {updateInstalling ? t("installingUpdate") : t("updateNow")}
                   </button>
                   {!updateInstalling && (
                     <button
@@ -1914,7 +1208,7 @@ function App() {
                       type="button"
                       onClick={handleDismissUpdateForever}
                     >
-                      {t('updateBannerDismiss')}
+                      {t("updateBannerDismiss")}
                     </button>
                   )}
                 </>
@@ -1924,7 +1218,7 @@ function App() {
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

@@ -1,9 +1,10 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import type { TFunction } from 'i18next'
-import type { Update } from '@tauri-apps/plugin-updater'
-
-type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'done' | 'error'
+import {
+  canCheckForUpdatesAgain,
+  type UpdateViewState,
+} from '../../../logic/updateViewState'
 
 type SettingsPageProps = {
   isTauri: boolean
@@ -20,6 +21,12 @@ type SettingsPageProps = {
   onGitCacheTtlSecsChange: (nextSecs: number) => void
   onClearGitCacheNow: () => void
   onGithubTokenChange: (token: string) => void
+  appVersion: string | null
+  updateViewState: UpdateViewState
+  updateVersion: string | null
+  updateError: string | null
+  onCheckForUpdates: () => void
+  onInstallUpdate: () => void
   onBack: () => void
   t: TFunction
 }
@@ -39,6 +46,12 @@ const SettingsPage = ({
   onClearGitCacheNow,
   githubToken,
   onGithubTokenChange,
+  appVersion,
+  updateViewState,
+  updateVersion,
+  updateError,
+  onCheckForUpdates,
+  onInstallUpdate,
   onBack,
   t,
 }: SettingsPageProps) => {
@@ -47,70 +60,11 @@ const SettingsPage = ({
     setLocalToken(githubToken)
   }, [githubToken])
 
-  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle')
-  const [updateVersion, setUpdateVersion] = useState<string | null>(null)
-  const [updateError, setUpdateError] = useState<string | null>(null)
-  const updateRef = useRef<Update | null>(null)
-
-  const handleCheckUpdate = useCallback(async () => {
-    if (!isTauri) return
-    setUpdateStatus('checking')
-    setUpdateError(null)
-    try {
-      const { check } = await import('@tauri-apps/plugin-updater')
-      const update = await check()
-      if (update) {
-        updateRef.current = update
-        setUpdateVersion(update.version)
-        setUpdateStatus('available')
-      } else {
-        setUpdateStatus('up-to-date')
-      }
-    } catch (err) {
-      setUpdateError(err instanceof Error ? err.message : String(err))
-      setUpdateStatus('error')
-    }
-  }, [isTauri])
-
-  const handleInstallUpdate = useCallback(async () => {
-    const update = updateRef.current
-    if (!update) return
-    setUpdateStatus('downloading')
-    setUpdateError(null)
-    try {
-      await update.downloadAndInstall()
-      setUpdateStatus('done')
-    } catch (err) {
-      setUpdateError(err instanceof Error ? err.message : String(err))
-      setUpdateStatus('error')
-    }
-  }, [])
-
-  const [appVersion, setAppVersion] = useState<string | null>(null)
-  const versionText = useMemo(() => {
+  const versionText = (() => {
     if (!isTauri) return t('notAvailable')
     if (!appVersion) return t('unknown')
     return `v${appVersion}`
-  }, [appVersion, isTauri, t])
-
-  const loadAppVersion = useCallback(async () => {
-    if (!isTauri) {
-      setAppVersion(null)
-      return
-    }
-    try {
-      const { getVersion } = await import('@tauri-apps/api/app')
-      const v = await getVersion()
-      setAppVersion(v)
-    } catch {
-      setAppVersion(null)
-    }
-  }, [isTauri])
-
-  useEffect(() => {
-    void loadAppVersion()
-    return () => { updateRef.current = null }
-  }, [loadAppVersion])
+  })()
 
   return (
     <div className="settings-page">
@@ -296,47 +250,47 @@ const SettingsPage = ({
             <span className="settings-version-text">
               {t('appName')} {versionText}
             </span>
-            {isTauri && updateStatus === 'idle' && (
+            {isTauri && canCheckForUpdatesAgain(updateViewState) && (
               <button
                 className="btn btn-secondary btn-sm"
                 type="button"
-                onClick={handleCheckUpdate}
+                onClick={onCheckForUpdates}
               >
                 {t('checkForUpdates')}
               </button>
             )}
-            {updateStatus === 'checking' && (
+            {updateViewState === 'checking' && (
               <span className="settings-update-status">{t('checkingUpdates')}</span>
             )}
-            {updateStatus === 'up-to-date' && (
+            {updateViewState === 'up-to-date' && (
               <span className="settings-update-status settings-update-ok">{t('updateNotAvailable')}</span>
             )}
           </div>
-          {updateStatus === 'available' && (
+          {updateViewState === 'available' && updateVersion && (
             <div className="settings-update-available">
               <span>{t('updateAvailableWithVersion', { version: updateVersion })}</span>
               <button
                 className="btn btn-primary btn-sm"
                 type="button"
-                onClick={handleInstallUpdate}
+                onClick={onInstallUpdate}
               >
                 {t('downloadAndInstall')}
               </button>
             </div>
           )}
-          {updateStatus === 'downloading' && (
+          {updateViewState === 'installing' && (
             <div className="settings-update-status">{t('installingUpdate')}</div>
           )}
-          {updateStatus === 'done' && (
+          {updateViewState === 'done' && (
             <div className="settings-update-ok">{t('updateInstalledRestart')}</div>
           )}
-          {updateStatus === 'error' && (
+          {updateViewState === 'error' && (
             <div className="settings-update-error">
               <span>{updateError}</span>
               <button
                 className="btn btn-secondary btn-sm"
                 type="button"
-                onClick={handleCheckUpdate}
+                onClick={onCheckForUpdates}
               >
                 {t('checkForUpdates')}
               </button>

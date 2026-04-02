@@ -25,9 +25,8 @@ const FilterBar = ({
     <div className="filter-bar">
       <div className="filter-title">{t('allSkills')}</div>
       <div className="filter-actions">
-        <button className="btn btn-secondary sort-btn" type="button">
+        <div className="btn btn-secondary sort-btn" role="group">
           <span className="sort-label">{t('filterSort')}:</span>
-          {sortBy === 'updated' ? t('sortUpdated') : t('sortName')}
           <ArrowUpDown size={12} />
           <select
             aria-label={t('filterSort')}
@@ -37,7 +36,7 @@ const FilterBar = ({
             <option value="updated">{t('sortUpdated')}</option>
             <option value="name">{t('sortName')}</option>
           </select>
-        </button>
+        </div>
         <div className="search-container">
           <Search size={16} className="search-icon-abs" />
           <input

@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { TFunction } from 'i18next'
-import type { LocalSkillCandidate } from '../types'
+import type { LocalSkillCandidate } from '../../../types'
 
 type LocalPickModalProps = {
   open: boolean
