@@ -12,19 +12,13 @@ use crate::core::cache_cleanup::{
 };
 use crate::core::cancel_token::CancelToken;
 use crate::core::central_repo::{ensure_central_repo, resolve_central_repo_path};
-use crate::core::featured_skills::{fetch_featured_skills, FeaturedSkill};
-use crate::core::github_search::{search_github_repos, RepoSummary};
 use crate::core::installer::{
     install_git_skill, install_git_skill_from_selection, install_local_skill,
     install_local_skill_from_selection, list_git_skills, list_local_skills,
     update_managed_skill_from_source, GitSkillCandidate, InstallResult, LocalSkillCandidate,
 };
 use crate::core::now_ms;
-use crate::core::onboarding::{build_onboarding_plan, OnboardingPlan};
 use crate::core::skill_store::{SkillStore, SkillTargetRecord};
-use crate::core::skills_search::{
-    search_skills_online as search_skills_online_core, OnlineSkillResult,
-};
 use crate::core::sync_engine::{
     copy_dir_recursive, sync_dir_for_tool_with_overwrite, sync_dir_hybrid,
 };
@@ -98,87 +92,6 @@ fn format_anyhow_error(err: anyhow::Error) -> String {
     }
 
     full
-}
-
-#[derive(Debug, Serialize)]
-pub struct ToolInfoDto {
-    pub key: String,
-    pub label: String,
-    pub installed: bool,
-    pub skills_dir: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ToolStatusDto {
-    pub tools: Vec<ToolInfoDto>,
-    pub installed: Vec<String>,
-    pub newly_installed: Vec<String>,
-}
-
-#[tauri::command]
-pub async fn get_tool_status(store: State<'_, SkillStore>) -> Result<ToolStatusDto, String> {
-    let store = store.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let adapters = crate::core::tool_adapters::default_tool_adapters();
-        let mut tools: Vec<ToolInfoDto> = Vec::new();
-        let mut installed: Vec<String> = Vec::new();
-
-        for adapter in &adapters {
-            let ok = is_tool_installed(adapter)?;
-            let key = adapter.id.as_key().to_string();
-            let skills_dir = resolve_default_path(adapter)?.to_string_lossy().to_string();
-            tools.push(ToolInfoDto {
-                key: key.clone(),
-                label: adapter.display_name.to_string(),
-                installed: ok,
-                skills_dir,
-            });
-            if ok {
-                installed.push(key);
-            }
-        }
-
-        installed.dedup();
-
-        let prev: Vec<String> = store
-            .get_setting("installed_tools_v1")?
-            .and_then(|raw| serde_json::from_str::<Vec<String>>(&raw).ok())
-            .unwrap_or_default();
-
-        let prev_set: std::collections::HashSet<String> = prev.into_iter().collect();
-        let newly_installed: Vec<String> = installed
-            .iter()
-            .filter(|k| !prev_set.contains(*k))
-            .cloned()
-            .collect();
-
-        // Persist current set (best effort).
-        let _ = store.set_setting(
-            "installed_tools_v1",
-            &serde_json::to_string(&installed).unwrap_or_else(|_| "[]".to_string()),
-        );
-
-        Ok::<_, anyhow::Error>(ToolStatusDto {
-            tools,
-            installed,
-            newly_installed,
-        })
-    })
-    .await
-    .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
-}
-
-#[tauri::command]
-pub async fn get_onboarding_plan(
-    app: tauri::AppHandle,
-    store: State<'_, SkillStore>,
-) -> Result<OnboardingPlan, String> {
-    let store = store.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || build_onboarding_plan(&app, &store))
-        .await
-        .map_err(|err| err.to_string())?
-        .map_err(format_anyhow_error)
 }
 
 #[tauri::command]
@@ -441,6 +354,29 @@ pub async fn install_git_selection(
     .map_err(format_anyhow_error)
 }
 
+fn remove_path_any(path: &str) -> Result<(), String> {
+    let p = std::path::Path::new(path);
+    if !p.exists() {
+        return Ok(());
+    }
+
+    let meta = std::fs::symlink_metadata(p).map_err(|err| err.to_string())?;
+    let ft = meta.file_type();
+
+    if ft.is_symlink() {
+        std::fs::remove_file(p).map_err(|err| err.to_string())?;
+        return Ok(());
+    }
+
+    if ft.is_dir() {
+        std::fs::remove_dir_all(p).map_err(|err| err.to_string())?;
+        return Ok(());
+    }
+
+    std::fs::remove_file(p).map_err(|err| err.to_string())?;
+    Ok(())
+}
+
 #[derive(Debug, Serialize)]
 pub struct SyncResultDto {
     pub mode_used: String,
@@ -626,56 +562,6 @@ pub async fn update_managed_skill(
 }
 
 #[tauri::command]
-pub async fn search_github(
-    store: State<'_, SkillStore>,
-    query: String,
-    limit: Option<u32>,
-) -> Result<Vec<RepoSummary>, String> {
-    let store = store.inner().clone();
-    let limit = limit.unwrap_or(10) as usize;
-    tauri::async_runtime::spawn_blocking(move || {
-        let token = store.get_setting("github_token")?.unwrap_or_default();
-        let token_opt = if token.is_empty() {
-            None
-        } else {
-            Some(token.as_str())
-        };
-        search_github_repos(&query, limit, token_opt)
-    })
-    .await
-    .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
-}
-
-#[tauri::command]
-pub async fn get_github_token(store: State<'_, SkillStore>) -> Result<String, String> {
-    let store = store.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        Ok::<_, anyhow::Error>(store.get_setting("github_token")?.unwrap_or_default())
-    })
-    .await
-    .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
-}
-
-#[tauri::command]
-pub async fn set_github_token(store: State<'_, SkillStore>, token: String) -> Result<(), String> {
-    let store = store.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let trimmed = token.trim();
-        if trimmed.is_empty() {
-            store.set_setting("github_token", "")?;
-        } else {
-            store.set_setting("github_token", trimmed)?;
-        }
-        Ok::<_, anyhow::Error>(())
-    })
-    .await
-    .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
-}
-
-#[tauri::command]
 #[allow(non_snake_case)]
 pub async fn import_existing_skill(
     app: tauri::AppHandle,
@@ -699,104 +585,6 @@ pub async fn import_existing_skill(
     .map_err(format_anyhow_error)
 }
 
-#[derive(Debug, Serialize)]
-pub struct ManagedSkillDto {
-    pub id: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub source_type: String,
-    pub source_ref: Option<String>,
-    pub central_path: String,
-    pub created_at: i64,
-    pub updated_at: i64,
-    pub last_sync_at: Option<i64>,
-    pub status: String,
-    pub targets: Vec<SkillTargetDto>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct SkillTargetDto {
-    pub tool: String,
-    pub mode: String,
-    pub status: String,
-    pub target_path: String,
-    pub synced_at: Option<i64>,
-}
-
-#[tauri::command]
-pub fn get_managed_skills(store: State<'_, SkillStore>) -> Result<Vec<ManagedSkillDto>, String> {
-    get_managed_skills_impl(store.inner())
-}
-
-#[tauri::command]
-#[allow(non_snake_case)]
-pub async fn delete_managed_skill(
-    store: State<'_, SkillStore>,
-    skillId: String,
-) -> Result<(), String> {
-    let store = store.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        // 便于排查“按钮点了没反应”：确认前端确实触发了命令
-        println!("[delete_managed_skill] skillId={}", skillId);
-
-        // 先删除已同步到各工具目录的副本/软链接
-        // 注意：如果先删 skills 行，会触发 skill_targets cascade，导致无法再拿到 target_path
-        let targets = store.list_skill_targets(&skillId)?;
-
-        let mut remove_failures: Vec<String> = Vec::new();
-        for target in targets {
-            if let Err(err) = remove_path_any(&target.target_path) {
-                remove_failures.push(format!("{}: {}", target.target_path, err));
-            }
-        }
-
-        let record = store.get_skill_by_id(&skillId)?;
-        if let Some(skill) = record {
-            let path = std::path::PathBuf::from(skill.central_path);
-            if path.exists() {
-                std::fs::remove_dir_all(&path)?;
-            }
-            store.delete_skill(&skillId)?;
-        }
-
-        if !remove_failures.is_empty() {
-            anyhow::bail!(
-                "已删除托管记录，但清理部分工具目录失败：\n- {}",
-                remove_failures.join("\n- ")
-            );
-        }
-
-        Ok::<_, anyhow::Error>(())
-    })
-    .await
-    .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
-}
-
-fn remove_path_any(path: &str) -> Result<(), String> {
-    let p = std::path::Path::new(path);
-    if !p.exists() {
-        return Ok(());
-    }
-
-    let meta = std::fs::symlink_metadata(p).map_err(|err| err.to_string())?;
-    let ft = meta.file_type();
-
-    // 软链接（即使指向目录）也应该用 remove_file 删除链接本身
-    if ft.is_symlink() {
-        std::fs::remove_file(p).map_err(|err| err.to_string())?;
-        return Ok(());
-    }
-
-    if ft.is_dir() {
-        std::fs::remove_dir_all(p).map_err(|err| err.to_string())?;
-        return Ok(());
-    }
-
-    std::fs::remove_file(p).map_err(|err| err.to_string())?;
-    Ok(())
-}
-
 fn to_install_dto(result: InstallResult) -> InstallResultDto {
     InstallResultDto {
         skill_id: result.skill_id,
@@ -806,152 +594,8 @@ fn to_install_dto(result: InstallResult) -> InstallResultDto {
     }
 }
 
-fn get_managed_skills_impl(store: &SkillStore) -> Result<Vec<ManagedSkillDto>, String> {
-    let skills_with_targets = store
-        .list_skills_with_targets()
-        .map_err(|e| e.to_string())?;
-    Ok(skills_with_targets
-        .into_iter()
-        .map(|(skill, targets)| {
-            let targets = targets
-                .into_iter()
-                .map(|target| SkillTargetDto {
-                    tool: target.tool,
-                    mode: target.mode,
-                    status: target.status,
-                    target_path: target.target_path,
-                    synced_at: target.synced_at,
-                })
-                .collect();
-
-            ManagedSkillDto {
-                id: skill.id,
-                name: skill.name,
-                description: skill.description,
-                source_type: skill.source_type,
-                source_ref: skill.source_ref,
-                central_path: skill.central_path,
-                created_at: skill.created_at,
-                updated_at: skill.updated_at,
-                last_sync_at: skill.last_sync_at,
-                status: skill.status,
-                targets,
-            }
-        })
-        .collect())
-}
-
-#[derive(Debug, Serialize)]
-pub struct FeaturedSkillDto {
-    pub slug: String,
-    pub name: String,
-    pub summary: String,
-    pub downloads: u64,
-    pub stars: u64,
-    pub source_url: String,
-}
-
-impl From<FeaturedSkill> for FeaturedSkillDto {
-    fn from(s: FeaturedSkill) -> Self {
-        Self {
-            slug: s.slug,
-            name: s.name,
-            summary: s.summary,
-            downloads: s.downloads,
-            stars: s.stars,
-            source_url: s.source_url,
-        }
-    }
-}
-
-#[tauri::command]
-pub async fn get_featured_skills(
-    store: State<'_, SkillStore>,
-) -> Result<Vec<FeaturedSkillDto>, String> {
-    let store = store.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let skills = fetch_featured_skills(&store)?;
-        Ok::<_, anyhow::Error>(skills.into_iter().map(FeaturedSkillDto::from).collect())
-    })
-    .await
-    .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
-}
-
-#[derive(Debug, Serialize)]
-pub struct OnlineSkillDto {
-    pub name: String,
-    pub installs: u64,
-    pub source: String,
-    pub source_url: String,
-}
-
-impl From<OnlineSkillResult> for OnlineSkillDto {
-    fn from(r: OnlineSkillResult) -> Self {
-        Self {
-            name: r.name,
-            installs: r.installs,
-            source: r.source,
-            source_url: r.source_url,
-        }
-    }
-}
-
-#[tauri::command]
-pub async fn search_skills_online(
-    query: String,
-    limit: Option<u32>,
-) -> Result<Vec<OnlineSkillDto>, String> {
-    let limit = limit.unwrap_or(20) as usize;
-    tauri::async_runtime::spawn_blocking(move || {
-        let results = search_skills_online_core(&query, limit)?;
-        Ok::<_, anyhow::Error>(results.into_iter().map(OnlineSkillDto::from).collect())
-    })
-    .await
-    .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SkillFileEntry {
-    pub path: String,
-    pub size: u64,
-}
-
-#[tauri::command]
-pub async fn list_skill_files(central_path: String) -> Result<Vec<SkillFileEntry>, String> {
-    let path = std::path::PathBuf::from(&central_path);
-    tauri::async_runtime::spawn_blocking(move || {
-        let entries = crate::core::skill_files::list_files(&path)?;
-        Ok::<_, anyhow::Error>(
-            entries
-                .into_iter()
-                .map(|e| SkillFileEntry {
-                    path: e.path,
-                    size: e.size,
-                })
-                .collect(),
-        )
-    })
-    .await
-    .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
-}
-
-#[tauri::command]
-pub async fn read_skill_file(central_path: String, file_path: String) -> Result<String, String> {
-    let base = std::path::PathBuf::from(&central_path);
-    tauri::async_runtime::spawn_blocking(move || {
-        crate::core::skill_files::read_file(&base, &file_path)
-    })
-    .await
-    .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
-}
-
-#[tauri::command]
-pub fn cancel_current_operation(cancel: State<'_, Arc<CancelToken>>) -> Result<(), String> {
-    cancel.cancel();
-    Ok(())
-}
+pub mod github_cmds;
+pub mod explore_cmds;
+pub mod managed_skills_cmds;
+pub mod meta_cmds;
+pub mod skill_files_cmds;
