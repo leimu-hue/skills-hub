@@ -1,4 +1,4 @@
-import { memo } from 'react'
+
 import type { TFunction } from 'i18next'
 
 type LoadingOverlayProps = {
@@ -50,4 +50,4 @@ const LoadingOverlay = ({
   )
 }
 
-export default memo(LoadingOverlay)
+export default LoadingOverlay

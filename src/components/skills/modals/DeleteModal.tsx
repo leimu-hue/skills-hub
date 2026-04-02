@@ -1,4 +1,4 @@
-import { memo } from 'react'
+
 import { TriangleAlert } from 'lucide-react'
 import type { TFunction } from 'i18next'
 
@@ -73,4 +73,4 @@ const DeleteModal = ({
   )
 }
 
-export default memo(DeleteModal)
+export default DeleteModal

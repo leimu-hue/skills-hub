@@ -1,4 +1,4 @@
-import { memo } from 'react'
+
 import { ArrowUpDown, RefreshCw, Search } from 'lucide-react'
 import type { TFunction } from 'i18next'
 
@@ -60,4 +60,4 @@ const FilterBar = ({
   )
 }
 
-export default memo(FilterBar)
+export default FilterBar

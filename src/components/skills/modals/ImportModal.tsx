@@ -1,4 +1,4 @@
-import { memo } from 'react'
+
 import { Download } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import type { OnboardingPlan } from '../../../types'
@@ -150,4 +150,4 @@ const ImportModal = ({
   )
 }
 
-export default memo(ImportModal)
+export default ImportModal

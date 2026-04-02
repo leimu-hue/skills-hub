@@ -1,4 +1,4 @@
-import { memo } from 'react'
+
 import type { TFunction } from 'i18next'
 import type { LocalSkillCandidate } from '../../../types'
 
@@ -123,4 +123,4 @@ const LocalPickModal = ({
   )
 }
 
-export default memo(LocalPickModal)
+export default LocalPickModal

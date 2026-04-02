@@ -1,4 +1,4 @@
-import { memo } from 'react'
+
 import type { TFunction } from 'i18next'
 
 type SharedDirModalProps = {
@@ -56,4 +56,4 @@ const SharedDirModal = ({
   )
 }
 
-export default memo(SharedDirModal)
+export default SharedDirModal

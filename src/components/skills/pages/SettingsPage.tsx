@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import {
@@ -304,4 +304,4 @@ const SettingsPage = ({
   )
 }
 
-export default memo(SettingsPage)
+export default SettingsPage

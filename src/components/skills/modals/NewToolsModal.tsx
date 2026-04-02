@@ -1,4 +1,4 @@
-import { memo } from 'react'
+
 import type { TFunction } from 'i18next'
 
 type NewToolsModalProps = {
@@ -42,4 +42,4 @@ const NewToolsModal = ({
   )
 }
 
-export default memo(NewToolsModal)
+export default NewToolsModal

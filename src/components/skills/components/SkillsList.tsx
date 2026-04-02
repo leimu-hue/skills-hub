@@ -1,4 +1,4 @@
-import { memo } from 'react'
+
 import { MessageCircle } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import type { ManagedSkill, OnboardingPlan, ToolOption } from '../../../types'
@@ -92,4 +92,4 @@ const SkillsList = ({
   )
 }
 
-export default memo(SkillsList)
+export default SkillsList

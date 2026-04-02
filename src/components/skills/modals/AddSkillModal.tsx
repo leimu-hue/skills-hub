@@ -1,4 +1,4 @@
-import { memo } from 'react'
+
 import type { TFunction } from 'i18next'
 import type { ToolOption, ToolStatusDto } from '../../../types'
 
@@ -191,4 +191,4 @@ const AddSkillModal = ({
   )
 }
 
-export default memo(AddSkillModal)
+export default AddSkillModal

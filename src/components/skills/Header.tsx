@@ -1,4 +1,4 @@
-import { memo } from 'react'
+
 import { Layers, Search, Settings } from 'lucide-react'
 import type { TFunction } from 'i18next'
 
@@ -60,4 +60,4 @@ const Header = ({
   )
 }
 
-export default memo(Header)
+export default Header

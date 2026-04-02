@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { useState } from 'react'
 import { Box, Copy, Folder, GitBranch as Github, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { TFunction } from 'i18next'
@@ -191,4 +191,4 @@ const SkillCard = ({
   )
 }
 
-export default memo(SkillCard)
+export default SkillCard

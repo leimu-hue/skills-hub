@@ -1,4 +1,4 @@
-import { memo } from 'react'
+
 import type { TFunction } from 'i18next'
 import type { GitSkillCandidate } from '../../../types'
 
@@ -102,4 +102,4 @@ const GitPickModal = ({
   )
 }
 
-export default memo(GitPickModal)
+export default GitPickModal
