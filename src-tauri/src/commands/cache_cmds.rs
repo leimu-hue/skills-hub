@@ -16,7 +16,7 @@ pub async fn get_git_cache_cleanup_days(store: State<'_, SkillStore>) -> Result<
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]
@@ -28,7 +28,7 @@ pub async fn set_git_cache_cleanup_days(
     tauri::async_runtime::spawn_blocking(move || set_git_cache_cleanup_days_core(&store, days))
         .await
         .map_err(|err| err.to_string())?
-        .map_err(format_anyhow_error)
+        .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]
@@ -38,7 +38,7 @@ pub async fn clear_git_cache_now(app: tauri::AppHandle) -> Result<usize, String>
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]
@@ -49,7 +49,7 @@ pub async fn get_git_cache_ttl_secs(store: State<'_, SkillStore>) -> Result<i64,
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]
@@ -61,5 +61,5 @@ pub async fn set_git_cache_ttl_secs(
     tauri::async_runtime::spawn_blocking(move || set_git_cache_ttl_secs_core(&store, secs))
         .await
         .map_err(|err| err.to_string())?
-        .map_err(format_anyhow_error)
+        .map_err(super::format_anyhow_error)
 }

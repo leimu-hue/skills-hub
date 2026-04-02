@@ -35,7 +35,7 @@ pub async fn get_central_repo_path(
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]
@@ -93,5 +93,5 @@ pub async fn set_central_repo_path(
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }

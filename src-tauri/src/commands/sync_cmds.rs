@@ -1,12 +1,9 @@
-use anyhow::Context;
 use serde::Serialize;
 use tauri::State;
 
-use std::sync::Arc;
-
 use crate::core::skill_store::{SkillStore, SkillTargetRecord};
 use crate::core::sync_engine::{
-    copy_dir_recursive, sync_dir_for_tool_with_overwrite, sync_dir_hybrid,
+    sync_dir_for_tool_with_overwrite, sync_dir_hybrid,
 };
 use crate::core::tool_adapters::{adapter_by_key, is_tool_installed, resolve_default_path};
 use crate::core::now_ms;
@@ -32,7 +29,7 @@ pub async fn sync_skill_dir(
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]
@@ -109,7 +106,7 @@ pub async fn sync_skill_to_tool(
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]
@@ -156,7 +153,7 @@ pub async fn unsync_skill_from_tool(
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
 
 fn remove_path_any(path: &str) -> Result<(), String> {

@@ -71,13 +71,13 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_central_repo_path,
             commands::set_central_repo_path,
-            commands::meta_cmds::get_tool_status,
+            commands::get_tool_status,
             commands::get_git_cache_cleanup_days,
             commands::get_git_cache_ttl_secs,
             commands::set_git_cache_cleanup_days,
             commands::set_git_cache_ttl_secs,
             commands::clear_git_cache_now,
-            commands::meta_cmds::get_onboarding_plan,
+            commands::get_onboarding_plan,
             commands::install_local,
             commands::list_local_skills_cmd,
             commands::install_local_selection,
@@ -88,17 +88,17 @@ pub fn run() {
             commands::sync_skill_to_tool,
             commands::unsync_skill_from_tool,
             commands::update_managed_skill,
-            commands::github_cmds::search_github,
-            commands::github_cmds::get_github_token,
-            commands::github_cmds::set_github_token,
+            commands::search_github,
+            commands::get_github_token,
+            commands::set_github_token,
             commands::import_existing_skill,
-            commands::managed_skills_cmds::get_managed_skills,
-            commands::managed_skills_cmds::delete_managed_skill,
-            commands::explore_cmds::get_featured_skills,
-            commands::explore_cmds::search_skills_online,
-            commands::skill_files_cmds::list_skill_files,
-            commands::skill_files_cmds::read_skill_file,
-            commands::meta_cmds::cancel_current_operation
+            commands::get_managed_skills,
+            commands::delete_managed_skill,
+            commands::get_featured_skills,
+            commands::search_skills_online,
+            commands::list_skill_files,
+            commands::read_skill_file,
+            commands::cancel_current_operation
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

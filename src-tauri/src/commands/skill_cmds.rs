@@ -1,4 +1,3 @@
-use anyhow::Context;
 use serde::Serialize;
 use tauri::State;
 
@@ -28,22 +27,6 @@ pub struct UpdateResultDto {
     pub content_hash: Option<String>,
     pub source_revision: Option<String>,
     pub updated_targets: Vec<String>,
-}
-
-fn expand_home_path(input: &str) -> Result<std::path::PathBuf, anyhow::Error> {
-    let trimmed = input.trim();
-    if trimmed.is_empty() {
-        anyhow::bail!("storage path is empty");
-    }
-    if trimmed == "~" {
-        let home = dirs::home_dir().context("failed to resolve home directory")?;
-        return Ok(home);
-    }
-    if let Some(stripped) = trimmed.strip_prefix("~/") {
-        let home = dirs::home_dir().context("failed to resolve home directory")?;
-        return Ok(home.join(stripped));
-    }
-    Ok(std::path::PathBuf::from(trimmed))
 }
 
 fn to_install_dto(result: InstallResult) -> InstallResultDto {
@@ -80,7 +63,7 @@ pub async fn install_local(
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]
@@ -92,7 +75,7 @@ pub async fn list_local_skills_cmd(basePath: String) -> Result<Vec<LocalSkillCan
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]
@@ -113,7 +96,7 @@ pub async fn install_local_selection(
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]
@@ -134,7 +117,7 @@ pub async fn install_git(
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]
@@ -148,7 +131,7 @@ pub async fn list_git_skills_cmd(
     tauri::async_runtime::spawn_blocking(move || list_git_skills(&app, &store, &repoUrl))
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]
@@ -165,7 +148,7 @@ pub async fn update_managed_skill(
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]
@@ -184,7 +167,7 @@ pub async fn install_git_selection(
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
 
 #[tauri::command]
@@ -206,5 +189,5 @@ pub async fn import_existing_skill(
     })
     .await
     .map_err(|err| err.to_string())?
-    .map_err(format_anyhow_error)
+    .map_err(super::format_anyhow_error)
 }
