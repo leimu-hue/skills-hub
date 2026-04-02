@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import type { ManagedSkill, ToolStatusDto, ToolOption } from '../types'
 
 interface UseSkillsOptions {
@@ -56,22 +56,20 @@ export function useSkills({ invokeTauri, isTauri }: UseSkillsOptions): UseSkills
     }
   }, [isTauri, loadManagedSkills])
 
-  const toolInfos = useMemo(() => toolStatus?.tools ?? [], [toolStatus])
+  const toolInfos = toolStatus?.tools ?? []
 
-  const tools: ToolOption[] = useMemo(() => {
-    return toolInfos.map((info) => ({
-      id: info.key,
-      label: info.label,
-    }))
-  }, [toolInfos])
+  const tools: ToolOption[] = toolInfos.map((info) => ({
+    id: info.key,
+    label: info.label,
+  }))
 
-  const toolLabelById = useMemo(() => {
+  const toolLabelById: Record<string, string> = (() => {
     const out: Record<string, string> = {}
     for (const tool of tools) out[tool.id] = tool.label
     return out
-  }, [tools])
+  })()
 
-  const sharedToolIdsByToolId = useMemo(() => {
+  const sharedToolIdsByToolId: Record<string, string[]> = (() => {
     const byDir: Record<string, string[]> = {}
     for (const info of toolInfos) {
       const dir = info.skills_dir
@@ -85,38 +83,26 @@ export function useSkills({ invokeTauri, isTauri }: UseSkillsOptions): UseSkills
       for (const id of ids) out[id] = ids
     }
     return out
-  }, [toolInfos])
+  })()
 
-  const uniqueToolIdsBySkillsDir = useCallback(
-    (toolIds: string[]) => {
-      const wanted = new Set(toolIds)
-      const seen = new Set<string>()
-      const out: string[] = []
-      for (const tool of toolInfos) {
-        if (!wanted.has(tool.key)) continue
-        if (seen.has(tool.skills_dir)) continue
-        seen.add(tool.skills_dir)
-        out.push(tool.key)
-      }
-      return out
-    },
-    [toolInfos],
-  )
+  const uniqueToolIdsBySkillsDir = (toolIds: string[]) => {
+    const wanted = new Set(toolIds)
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const tool of toolInfos) {
+      if (!wanted.has(tool.key)) continue
+      if (seen.has(tool.skills_dir)) continue
+      seen.add(tool.skills_dir)
+      out.push(tool.key)
+    }
+    return out
+  }
 
-  const installedToolIds = useMemo(
-    () => toolStatus?.installed ?? [],
-    [toolStatus],
-  )
+  const installedToolIds = toolStatus?.installed ?? []
 
-  const isInstalled = useCallback(
-    (id: string) => installedToolIds.includes(id),
-    [installedToolIds],
-  )
+  const isInstalled = (id: string) => installedToolIds.includes(id)
 
-  const installedTools = useMemo(
-    () => tools.filter((tool) => installedToolIds.includes(tool.id)),
-    [tools, installedToolIds],
-  )
+  const installedTools = tools.filter((tool) => installedToolIds.includes(tool.id))
 
   return {
     managedSkills,

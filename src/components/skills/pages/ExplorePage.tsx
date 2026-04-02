@@ -1,4 +1,3 @@
-import { memo, useMemo } from 'react'
 import { Plus, Search, Star } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import type { FeaturedSkillDto, ManagedSkill, OnlineSkillDto } from '../../../types'
@@ -23,7 +22,7 @@ function formatCount(n: number): string {
   return String(n)
 }
 
-const ExplorePage = ({
+function ExplorePage({
   featuredSkills,
   featuredLoading,
   exploreFilter,
@@ -35,8 +34,8 @@ const ExplorePage = ({
   onInstallSkill,
   onOpenManualAdd,
   t,
-}: ExplorePageProps) => {
-  const filteredSkills = useMemo(() => {
+}: ExplorePageProps) {
+  const filteredSkills = (() => {
     if (!exploreFilter.trim()) return featuredSkills
     const lower = exploreFilter.toLowerCase()
     return featuredSkills.filter(
@@ -44,17 +43,16 @@ const ExplorePage = ({
         s.name.toLowerCase().includes(lower) ||
         s.summary.toLowerCase().includes(lower),
     )
-  }, [featuredSkills, exploreFilter])
+  })()
 
-  const deduplicatedResults = useMemo(() => {
+  const deduplicatedResults = (() => {
     const featuredNames = new Set(filteredSkills.map((s) => s.name.toLowerCase()))
     return searchResults.filter((s) => !featuredNames.has(s.name.toLowerCase()))
-  }, [searchResults, filteredSkills])
+  })()
 
   const isSearchActive = exploreFilter.trim().length >= 2
 
-  // Check if a skill is already installed by matching name + source (case-insensitive)
-  const installedSkillKeys = useMemo(() => {
+  const installedSkillKeys = (() => {
     const keys = new Set<string>()
     for (const skill of managedSkills) {
       const source = (skill.source_ref ?? '')
@@ -65,7 +63,7 @@ const ExplorePage = ({
       keys.add(`${skill.name.toLowerCase()}|${source}`)
     }
     return keys
-  }, [managedSkills])
+  })()
 
   const isInstalled = (skillName: string, source: string) => {
     const normalizedSource = source
@@ -215,4 +213,4 @@ const ExplorePage = ({
   )
 }
 
-export default memo(ExplorePage)
+export default ExplorePage

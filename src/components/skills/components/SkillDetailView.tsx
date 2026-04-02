@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ArrowLeft,
   ChevronDown,
@@ -170,67 +170,64 @@ type FileTreeNodeProps = {
   onSelectFile: (path: string) => void
 }
 
-const FileTreeNode = memo(
-  ({
-    node,
-    depth,
-    activeFile,
-    expanded,
-    onToggleDir,
-    onSelectFile,
-  }: FileTreeNodeProps) => {
-    if (node.isDir) {
-      const isOpen = expanded.has(node.path)
-      return (
-        <>
-          <button
-            type="button"
-            className="tree-item tree-dir"
-            style={{ paddingLeft: 12 + depth * 16 }}
-            onClick={() => onToggleDir(node.path)}
-          >
-            <span className="tree-chevron">
-              {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            </span>
-            {isOpen ? (
-              <FolderOpen size={14} className="tree-icon tree-icon-folder" />
-            ) : (
-              <Folder size={14} className="tree-icon tree-icon-folder" />
-            )}
-            <span className="tree-name">{node.name}</span>
-          </button>
-          {isOpen
-            ? node.children.map((child) => (
-                <FileTreeNode
-                  key={child.path}
-                  node={child}
-                  depth={depth + 1}
-                  activeFile={activeFile}
-                  expanded={expanded}
-                  onToggleDir={onToggleDir}
-                  onSelectFile={onSelectFile}
-                />
-              ))
-            : null}
-        </>
-      )
-    }
-
+function FileTreeNode({
+  node,
+  depth,
+  activeFile,
+  expanded,
+  onToggleDir,
+  onSelectFile,
+}: FileTreeNodeProps) {
+  if (node.isDir) {
+    const isOpen = expanded.has(node.path)
     return (
-      <button
-        type="button"
-        className={`tree-item tree-file${activeFile === node.path ? ' active' : ''}`}
-        style={{ paddingLeft: 12 + depth * 16 + 18 }}
-        onClick={() => onSelectFile(node.path)}
-      >
-        <File size={14} className="tree-icon tree-icon-file" />
-        <span className="tree-name">{node.name}</span>
-        <span className="tree-size">{formatSize(node.size)}</span>
-      </button>
+      <>
+        <button
+          type="button"
+          className="tree-item tree-dir"
+          style={{ paddingLeft: 12 + depth * 16 }}
+          onClick={() => onToggleDir(node.path)}
+        >
+          <span className="tree-chevron">
+            {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </span>
+          {isOpen ? (
+            <FolderOpen size={14} className="tree-icon tree-icon-folder" />
+          ) : (
+            <Folder size={14} className="tree-icon tree-icon-folder" />
+          )}
+          <span className="tree-name">{node.name}</span>
+        </button>
+        {isOpen
+          ? node.children.map((child) => (
+              <FileTreeNode
+                key={child.path}
+                node={child}
+                depth={depth + 1}
+                activeFile={activeFile}
+                expanded={expanded}
+                onToggleDir={onToggleDir}
+                onSelectFile={onSelectFile}
+              />
+            ))
+          : null}
+      </>
     )
-  },
-)
-FileTreeNode.displayName = 'FileTreeNode'
+  }
+
+  return (
+    <button
+      type="button"
+      className={`tree-item tree-file${activeFile === node.path ? ' active' : ''}`}
+      style={{ paddingLeft: 12 + depth * 16 + 18 }}
+      onClick={() => onSelectFile(node.path)}
+    >
+      <File size={14} className="tree-icon tree-icon-file" />
+      <span className="tree-name">{node.name}</span>
+      <span className="tree-size">{formatSize(node.size)}</span>
+    </button>
+  )
+}
 
 // ─── FileContent renderer ────────────────────────────
 type FileContentRendererProps = {
@@ -269,97 +266,71 @@ function parseFrontmatter(raw: string): {
   return { meta: entries, body }
 }
 
-const FileContentRenderer = memo(
-  ({ filename, content, isDark }: FileContentRendererProps) => {
-    if (isMarkdown(filename)) {
-      const { meta, body } = parseFrontmatter(content)
-      return (
-        <div className="markdown-body">
-          {meta && (
-            <table>
-              <thead>
-                <tr>
-                  {Object.keys(meta).map((k) => (
-                    <th key={k}>{k}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  {Object.values(meta).map((v, i) => (
-                    <td key={i}>{v}</td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          )}
-          <Markdown
-            remarkPlugins={[remarkFrontmatter, remarkGfm]}
-            components={{
-              code: ({ className, children, ...rest }) => {
-                const match = /language-(\w+)/.exec(className ?? '')
-                const inline = !match
-                if (inline) {
-                  return (
-                    <code className="md-inline-code" {...rest}>
-                      {children}
-                    </code>
-                  )
-                }
+function FileContentRenderer({ filename, content, isDark }: FileContentRendererProps) {
+  if (isMarkdown(filename)) {
+    const { meta, body } = parseFrontmatter(content)
+    return (
+      <div className="markdown-body">
+        {meta && (
+          <table>
+            <thead>
+              <tr>
+                {Object.keys(meta).map((k) => (
+                  <th key={k}>{k}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                {Object.values(meta).map((v, i) => (
+                  <td key={i}>{v}</td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        )}
+        <Markdown
+          remarkPlugins={[remarkFrontmatter, remarkGfm]}
+          components={{
+            code: ({ className, children, ...rest }) => {
+              const match = /language-(\w+)/.exec(className ?? '')
+              const inline = !match
+              if (inline) {
                 return (
-                  <SyntaxHighlighter
-                    style={isDark ? oneDark : oneLight}
-                    language={match[1]}
-                    PreTag="div"
-                    customStyle={{
-                      margin: 0,
-                      borderRadius: 6,
-                      fontSize: 13,
-                    }}
-                  >
-                    {String(children).replace(/\n$/, '')}
-                  </SyntaxHighlighter>
+                  <code className="md-inline-code" {...rest}>
+                    {children}
+                  </code>
                 )
-              },
-            }}
-          >
-            {body}
-          </Markdown>
-        </div>
-      )
-    }
-
-    const lang = getLang(filename)
-    if (lang) {
-      return (
-        <SyntaxHighlighter
-          style={isDark ? oneDark : oneLight}
-          language={lang}
-          showLineNumbers
-          lineNumberStyle={{
-            minWidth: '3em',
-            paddingRight: '1em',
-            color: isDark ? '#636d83' : '#9ca3af',
-            userSelect: 'none',
-          }}
-          customStyle={{
-            margin: 0,
-            padding: '16px 0',
-            background: 'transparent',
-            fontSize: 13,
-            lineHeight: 1.7,
+              }
+              return (
+                <SyntaxHighlighter
+                  style={isDark ? oneDark : oneLight}
+                  language={match[1]}
+                  PreTag="div"
+                  customStyle={{
+                    margin: 0,
+                    borderRadius: 6,
+                    fontSize: 13,
+                  }}
+                >
+                  {String(children).replace(/\n$/, '')}
+                </SyntaxHighlighter>
+              )
+            },
           }}
         >
-          {content}
-        </SyntaxHighlighter>
-      )
-    }
+          {body}
+        </Markdown>
+      </div>
+    )
+  }
 
-    // Plain text with line numbers
+  const lang = getLang(filename)
+  if (lang) {
     return (
       <SyntaxHighlighter
         style={isDark ? oneDark : oneLight}
-        language="text"
+        language={lang}
         showLineNumbers
         lineNumberStyle={{
           minWidth: '3em',
@@ -378,23 +349,45 @@ const FileContentRenderer = memo(
         {content}
       </SyntaxHighlighter>
     )
-  },
-)
-FileContentRenderer.displayName = 'FileContentRenderer'
+  }
+
+  return (
+    <SyntaxHighlighter
+      style={isDark ? oneDark : oneLight}
+      language="text"
+      showLineNumbers
+      lineNumberStyle={{
+        minWidth: '3em',
+        paddingRight: '1em',
+        color: isDark ? '#636d83' : '#9ca3af',
+        userSelect: 'none',
+      }}
+      customStyle={{
+        margin: 0,
+        padding: '16px 0',
+        background: 'transparent',
+        fontSize: 13,
+        lineHeight: 1.7,
+      }}
+    >
+      {content}
+    </SyntaxHighlighter>
+  )
+}
 
 // ─── Main component ──────────────────────────────────
 interface SkillDetailViewPropsWithTheme extends SkillDetailViewProps {
   isDark: boolean
 }
 
-const SkillDetailView = ({
+function SkillDetailView({
   skill,
   onBack,
   invokeTauri,
   formatRelative,
   t,
   isDark,
-}: SkillDetailViewPropsWithTheme) => {
+}: SkillDetailViewPropsWithTheme) {
   const [files, setFiles] = useState<SkillFileEntry[]>([])
   const [activeFile, setActiveFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState('')
@@ -402,7 +395,7 @@ const SkillDetailView = ({
   const [loadingContent, setLoadingContent] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
-  const tree = useMemo(() => buildTree(files), [files])
+  const tree = buildTree(files)
 
   useEffect(() => {
     let cancelled = false
@@ -461,11 +454,11 @@ const SkillDetailView = ({
     }
   }, [activeFile, invokeTauri, skill.central_path])
 
-  const handleSelectFile = useCallback((path: string) => {
+  const handleSelectFile = (path: string) => {
     setActiveFile(path)
-  }, [])
+  }
 
-  const handleToggleDir = useCallback((path: string) => {
+  const handleToggleDir = (path: string) => {
     setExpanded((prev) => {
       const next = new Set(prev)
       if (next.has(path)) {
@@ -475,7 +468,7 @@ const SkillDetailView = ({
       }
       return next
     })
-  }, [])
+  }
 
   const sourceLabel =
     skill.source_type.toLowerCase().includes('git')
@@ -586,4 +579,4 @@ const SkillDetailView = ({
   )
 }
 
-export default memo(SkillDetailView)
+export default SkillDetailView

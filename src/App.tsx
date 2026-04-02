@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Update } from "@tauri-apps/plugin-updater";
 import "./App.css";
 import { useTranslation } from "react-i18next";
@@ -71,16 +71,13 @@ function App() {
       (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__,
     );
 
-  const invokeTauri = useCallback(
-    async <T,>(command: string, args?: Record<string, unknown>) => {
-      if (!isTauri) {
-        throw new Error("Tauri API is not available");
-      }
-      const { invoke } = await import("@tauri-apps/api/core");
-      return invoke<T>(command, args);
-    },
-    [isTauri],
-  );
+  const invokeTauri = useCallback(async <T,>(command: string, args?: Record<string, unknown>) => {
+    if (!isTauri) {
+      throw new Error("Tauri API is not available");
+    }
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<T>(command, args);
+  }, [isTauri]);
 
   // Skills hook
   const {
@@ -210,15 +207,12 @@ function App() {
   );
 
   // Helper functions
-  const isSkillNameTaken = useCallback(
-    (name: string) =>
-      managedSkills.some(
-        (skill) => skill.name.toLowerCase() === name.toLowerCase(),
-      ),
-    [managedSkills],
-  );
+  const isSkillNameTaken = (name: string) =>
+    managedSkills.some(
+      (skill) => skill.name.toLowerCase() === name.toLowerCase(),
+    )
 
-  const formatRelative = useMemo(() => createFormatRelative(t), [t]);
+  const formatRelative = createFormatRelative(t)
 
   // Skill actions hook
   const skillActions = useSkillActions({
@@ -322,7 +316,7 @@ function App() {
     setUpdateBody(update.body ?? null);
   }, []);
 
-  const handleCheckForUpdates = useCallback(async () => {
+  const handleCheckForUpdates = async () => {
     if (!isTauri) return;
 
     setUpdateChecking(true);
@@ -352,7 +346,7 @@ function App() {
     } finally {
       setUpdateChecking(false);
     }
-  }, [isTauri, loadUpdateBody]);
+  };
 
   // Update check effect
   useEffect(() => {
@@ -425,7 +419,7 @@ function App() {
   }, [toolStatus, setShowNewToolsModal]);
 
   // Computed values
-  const visibleSkills = useMemo(() => {
+  const visibleSkills = (() => {
     const query = searchQuery.trim().toLowerCase();
     const filtered = managedSkills.filter((skill) => {
       if (!query) return true;
@@ -442,21 +436,18 @@ function App() {
       return (b.updated_at ?? 0) - (a.updated_at ?? 0);
     });
     return sorted;
-  }, [managedSkills, searchQuery, sortBy]);
+  })();
 
-  const newlyInstalledToolsText = useMemo(() => {
+  const newlyInstalledToolsText = (() => {
     if (!toolStatus || toolStatus.newly_installed.length === 0) return "";
     return toolStatus.newly_installed
       .map((id) => tools.find((t) => t.id === id)?.label ?? id)
       .join("、");
-  }, [toolStatus, tools]);
+  })();
 
-  const pendingDeleteSkill = useMemo(
-    () => managedSkills.find((skill) => skill.id === pendingDeleteId) ?? null,
-    [managedSkills, pendingDeleteId],
-  );
+  const pendingDeleteSkill = managedSkills.find((skill) => skill.id === pendingDeleteId) ?? null;
 
-  const pendingSharedLabels = useMemo(() => {
+  const pendingSharedLabels = (() => {
     if (!pendingSharedToggle) return null;
     const toolId = pendingSharedToggle.toolId;
     const shared = sharedToolIdsByToolId[toolId] ?? [];
@@ -465,71 +456,49 @@ function App() {
       toolLabel: toolLabelById[toolId] ?? toolId,
       otherLabels: others.map((id) => toolLabelById[id] ?? id).join(", "),
     };
-  }, [pendingSharedToggle, sharedToolIdsByToolId, toolLabelById]);
+  })();
 
-  const settingsAvailableVersion = useMemo(
-    () =>
-      getSettingsAvailableVersion({
-        availableVersion: updateAvailableVersion,
-        ignoredVersion: ignoredUpdateVersion,
-      }),
-    [ignoredUpdateVersion, updateAvailableVersion],
-  );
+  const settingsAvailableVersion = getSettingsAvailableVersion({
+    availableVersion: updateAvailableVersion,
+    ignoredVersion: ignoredUpdateVersion,
+  });
 
-  const updateViewState = useMemo(
-    () =>
-      getUpdateViewState({
-        isChecking: updateChecking,
-        isInstalling: updateInstalling,
-        isDone: updateDone,
-        error: updateError,
-        availableVersion: settingsAvailableVersion,
-        manualCheckCompleted: updateCheckCompleted,
-      }),
-    [
-      settingsAvailableVersion,
-      updateCheckCompleted,
-      updateChecking,
-      updateDone,
-      updateError,
-      updateInstalling,
-    ],
-  );
+  const updateViewState = getUpdateViewState({
+    isChecking: updateChecking,
+    isInstalling: updateInstalling,
+    isDone: updateDone,
+    error: updateError,
+    availableVersion: settingsAvailableVersion,
+    manualCheckCompleted: updateCheckCompleted,
+  });
 
-  const showSharedUpdateModal = useMemo(
-    () =>
-      shouldShowSharedUpdateModal({
-        modalVersion: updateModalVersion,
-        isInstalling: updateInstalling,
-        isDone: updateDone,
-      }),
-    [updateDone, updateInstalling, updateModalVersion],
-  );
+  const showSharedUpdateModal = shouldShowSharedUpdateModal({
+    modalVersion: updateModalVersion,
+    isInstalling: updateInstalling,
+    isDone: updateDone,
+  });
 
   // Handlers
-  const handleCancelLoading = useCallback(() => {
+  const handleCancelLoading = () => {
     void invokeTauri("cancel_current_operation").catch(() => {});
     setLoading(false);
     setLoadingStartAt(null);
     setActionMessage(null);
-  }, [invokeTauri]);
+  };
 
-  const handleOpenSettings = useCallback(() => {
+  const handleOpenSettings = () => {
     setActiveView("settings");
-  }, []);
+  };
 
-  const handleCloseSettings = useCallback(() => {
+  const handleCloseSettings = () => {
     setActiveView("myskills");
-  }, []);
+  };
 
-  const handleThemeChange = useCallback(
-    (nextTheme: "system" | "light" | "dark") => {
-      setThemePreference(nextTheme);
-    },
-    [setThemePreference],
-  );
+  const handleThemeChange = (nextTheme: "system" | "light" | "dark") => {
+    setThemePreference(nextTheme);
+  };
 
-  const loadFeaturedSkills = useCallback(async () => {
+  const loadFeaturedSkills = async () => {
     if (featuredSkills.length > 0) return;
     setFeaturedLoading(true);
     try {
@@ -542,161 +511,137 @@ function App() {
     } finally {
       setFeaturedLoading(false);
     }
-  }, [featuredSkills.length, invokeTauri]);
+  };
 
-  const handleViewChange = useCallback(
-    (view: "myskills" | "explore") => {
-      setActiveView(view);
-      if (view === "explore") {
-        loadFeaturedSkills();
-      }
-      if (view === "myskills") {
-        setDetailSkill(null);
-      }
-    },
-    [loadFeaturedSkills],
-  );
+  const handleViewChange = (view: "myskills" | "explore") => {
+    setActiveView(view);
+    if (view === "explore") {
+      loadFeaturedSkills();
+    }
+    if (view === "myskills") {
+      setDetailSkill(null);
+    }
+  };
 
-  const handleOpenDetail = useCallback((skill: ManagedSkill) => {
+  const handleOpenDetail = (skill: ManagedSkill) => {
     setDetailSkill(skill);
     setActiveView("detail");
-  }, []);
+  };
 
-  const handleBackToList = useCallback(() => {
+  const handleBackToList = () => {
     setDetailSkill(null);
     setActiveView("myskills");
-  }, []);
+  };
 
-  const handleExploreFilterChange = useCallback(
-    (value: string) => {
-      setExploreFilter(value);
-      if (searchTimerRef.current) {
-        clearTimeout(searchTimerRef.current);
-        searchTimerRef.current = null;
-      }
-      if (value.trim().length < 2) {
-        setSearchResults([]);
-        setSearchLoading(false);
-        return;
-      }
-      setSearchLoading(true);
-      searchTimerRef.current = setTimeout(async () => {
-        try {
-          const results = await invokeTauri<OnlineSkillDto[]>(
-            "search_skills_online",
-            { query: value.trim(), limit: 20 },
-          );
-          setSearchResults(results);
-        } catch {
-          toast.error(t("searchError"));
-          setSearchResults([]);
-        } finally {
-          setSearchLoading(false);
-        }
-      }, 500);
-    },
-    [invokeTauri, t],
-  );
-
-  const handleOpenAdd = useCallback(() => {
-    setShowAddModal(true);
-  }, [setShowAddModal]);
-
-  const handleSortChange = useCallback((value: "updated" | "name") => {
-    setSortBy(value);
-  }, []);
-
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchQuery(value);
-  }, []);
-
-  const handleSyncTargetChange = useCallback(
-    (toolId: string, checked: boolean) => {
-      const shared = sharedToolIdsByToolId[toolId] ?? [toolId];
-      if (shared.length > 1) {
-        const others = shared.filter((id) => id !== toolId);
-        const otherLabels = others
-          .map((id) => toolLabelById[id] ?? id)
-          .join(", ");
-        const ok = window.confirm(
-          t("sharedDirConfirm", {
-            tool: toolLabelById[toolId] ?? toolId,
-            others: otherLabels,
-          }),
+  const handleExploreFilterChange = (value: string) => {
+    setExploreFilter(value);
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
+    if (value.trim().length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+    setSearchLoading(true);
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const results = await invokeTauri<OnlineSkillDto[]>(
+          "search_skills_online",
+          { query: value.trim(), limit: 20 },
         );
-        if (!ok) return;
+        setSearchResults(results);
+      } catch {
+        toast.error(t("searchError"));
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
       }
-      setSyncTargets((prev) => {
-        const next = { ...prev };
-        for (const id of shared) next[id] = checked;
-        return next;
-      });
-    },
-    [sharedToolIdsByToolId, t, toolLabelById],
-  );
+    }, 500);
+  };
 
-  const handleToggleAllGitCandidates = useCallback(
-    (checked: boolean) => {
-      setGitCandidateSelected(
-        Object.fromEntries(gitCandidates.map((c) => [c.subpath, checked])),
+  const handleOpenAdd = () => {
+    setShowAddModal(true);
+  };
+
+  const handleSortChange = (value: "updated" | "name") => {
+    setSortBy(value);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+  };
+
+  const handleSyncTargetChange = (toolId: string, checked: boolean) => {
+    const shared = sharedToolIdsByToolId[toolId] ?? [toolId];
+    if (shared.length > 1) {
+      const others = shared.filter((id) => id !== toolId);
+      const otherLabels = others
+        .map((id) => toolLabelById[id] ?? id)
+        .join(", ");
+      const ok = window.confirm(
+        t("sharedDirConfirm", {
+          tool: toolLabelById[toolId] ?? toolId,
+          others: otherLabels,
+        }),
       );
-    },
-    [gitCandidates, setGitCandidateSelected],
-  );
+      if (!ok) return;
+    }
+    setSyncTargets((prev) => {
+      const next = { ...prev };
+      for (const id of shared) next[id] = checked;
+      return next;
+    });
+  };
 
-  const handleToggleAllLocalCandidates = useCallback(
-    (checked: boolean) => {
-      setLocalCandidateSelected(
-        Object.fromEntries(
-          localCandidates.map((c) => [c.subpath, c.valid && checked]),
-        ),
-      );
-    },
-    [localCandidates, setLocalCandidateSelected],
-  );
+  const handleToggleAllGitCandidates = (checked: boolean) => {
+    setGitCandidateSelected(
+      Object.fromEntries(gitCandidates.map((c) => [c.subpath, checked])),
+    );
+  };
 
-  const handleToggleGitCandidate = useCallback(
-    (subpath: string, checked: boolean) => {
-      setGitCandidateSelected((prev: Record<string, boolean>) => ({
-        ...prev,
-        [subpath]: checked,
-      }));
-    },
-    [setGitCandidateSelected],
-  );
+  const handleToggleAllLocalCandidates = (checked: boolean) => {
+    setLocalCandidateSelected(
+      Object.fromEntries(
+        localCandidates.map((c) => [c.subpath, c.valid && checked]),
+      ),
+    );
+  };
 
-  const handleToggleLocalCandidate = useCallback(
-    (subpath: string, checked: boolean) => {
-      setLocalCandidateSelected((prev: Record<string, boolean>) => ({
-        ...prev,
-        [subpath]: checked,
-      }));
-    },
-    [setLocalCandidateSelected],
-  );
+  const handleToggleGitCandidate = (subpath: string, checked: boolean) => {
+    setGitCandidateSelected((prev: Record<string, boolean>) => ({
+      ...prev,
+      [subpath]: checked,
+    }));
+  };
 
-  const handleToggleGroup = useCallback(
-    (groupName: string, checked: boolean) => {
-      setSelected((prev) => ({
-        ...prev,
-        [groupName]: checked,
-      }));
-    },
-    [],
-  );
+  const handleToggleLocalCandidate = (subpath: string, checked: boolean) => {
+    setLocalCandidateSelected((prev: Record<string, boolean>) => ({
+      ...prev,
+      [subpath]: checked,
+    }));
+  };
 
-  const handleSelectVariant = useCallback((groupName: string, path: string) => {
+  const handleToggleGroup = (groupName: string, checked: boolean) => {
+    setSelected((prev) => ({
+      ...prev,
+      [groupName]: checked,
+    }));
+  };
+
+  const handleSelectVariant = (groupName: string, path: string) => {
     setVariantChoice((prev) => ({
       ...prev,
       [groupName]: path,
     }));
-  }, []);
+  };
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = () => {
     void loadManagedSkills();
-  }, [loadManagedSkills]);
+  };
 
-  const handleReviewImport = useCallback(async () => {
+  const handleReviewImport = async () => {
     if (plan) {
       setShowImportModal(true);
       return;
@@ -705,21 +650,18 @@ function App() {
     if (result) {
       setShowImportModal(true);
     }
-  }, [loadPlan, plan, setShowImportModal]);
+  };
 
-  const toggleAll = useCallback(
-    (checked: boolean) => {
-      if (!plan) return;
-      const next: Record<string, boolean> = {};
-      plan.groups.forEach((group) => {
-        next[group.name] = checked;
-      });
-      setSelected(next);
-    },
-    [plan],
-  );
+  const toggleAll = (checked: boolean) => {
+    if (!plan) return;
+    const next: Record<string, boolean> = {};
+    plan.groups.forEach((group) => {
+      next[group.name] = checked;
+    });
+    setSelected(next);
+  };
 
-  const handlePickLocalPath = useCallback(async () => {
+  const handlePickLocalPath = async () => {
     if (!isTauri) return;
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
@@ -733,10 +675,9 @@ function App() {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [isTauri, t, setLocalPath]);
+  };
 
-  // Import handler
-  const handleImport = useCallback(async () => {
+  const handleImport = async () => {
     if (!plan) return;
     await skillActions.handleImport({
       plan,
@@ -745,56 +686,42 @@ function App() {
       onComplete: () => setShowImportModal(false),
     });
     await loadPlan();
-  }, [
-    plan,
-    selected,
-    variantChoice,
-    skillActions,
-    loadPlan,
-    setShowImportModal,
-  ]);
+  };
 
-  // Local skill creation
-  const handleCreateLocal = useCallback(async () => {
+  const handleCreateLocal = async () => {
     await skillActions.handleCreateLocal({
       localPath,
       localName,
     });
-  }, [localPath, localName, skillActions]);
+  };
 
-  // Git skill creation
-  const handleCreateGit = useCallback(async () => {
+  const handleCreateGit = async () => {
     await skillActions.handleCreateGit({
       gitUrl,
       gitName,
       autoSelectSkillName,
     });
-  }, [gitUrl, gitName, autoSelectSkillName, skillActions]);
+  };
 
-  // Explore install handler
-  const handleExploreInstall = useCallback(
-    (sourceUrl: string, skillName?: string) => {
-      const nextState = buildExploreInstallState({
-        sourceUrl,
-        skillName,
-        installedToolIds: toolStatus?.installed ?? [],
-      });
+  const handleExploreInstall = (sourceUrl: string, skillName?: string) => {
+    const nextState = buildExploreInstallState({
+      sourceUrl,
+      skillName,
+      installedToolIds: toolStatus?.installed ?? [],
+    });
 
-      setGitUrl(nextState.gitUrl);
-      setAutoSelectSkillName(nextState.autoSelectSkillName);
-      setSyncTargets(nextState.syncTargets);
-      void skillActions.handleCreateGit({
-        gitUrl: nextState.gitUrl,
-        gitName: "",
-        autoSelectSkillName: nextState.autoSelectSkillName,
-        syncTargetOverrides: nextState.syncTargets,
-      });
-    },
-    [toolStatus, skillActions, setGitUrl],
-  );
+    setGitUrl(nextState.gitUrl);
+    setAutoSelectSkillName(nextState.autoSelectSkillName);
+    setSyncTargets(nextState.syncTargets);
+    void skillActions.handleCreateGit({
+      gitUrl: nextState.gitUrl,
+      gitName: "",
+      autoSelectSkillName: nextState.autoSelectSkillName,
+      syncTargetOverrides: nextState.syncTargets,
+    });
+  };
 
-  // Install selected local candidates
-  const handleInstallSelectedLocalCandidates = useCallback(async () => {
+  const handleInstallSelectedLocalCandidates = async () => {
     const selectedCandidates = localCandidates.filter(
       (c) => c.valid && localCandidateSelected[c.subpath],
     );
@@ -803,16 +730,9 @@ function App() {
       localName,
       localCandidatesBasePath,
     });
-  }, [
-    localCandidates,
-    localCandidateSelected,
-    localName,
-    localCandidatesBasePath,
-    skillActions,
-  ]);
+  };
 
-  // Install selected git candidates
-  const handleInstallSelectedCandidates = useCallback(async () => {
+  const handleInstallSelectedCandidates = async () => {
     const selectedCandidates = gitCandidates.filter(
       (c) => gitCandidateSelected[c.subpath],
     );
@@ -821,37 +741,22 @@ function App() {
       gitName,
       gitCandidatesRepoUrl,
     });
-  }, [
-    gitCandidates,
-    gitCandidateSelected,
-    gitName,
-    gitCandidatesRepoUrl,
-    skillActions,
-  ]);
+  };
 
-  // Delete managed skill
-  const handleDeleteManaged = useCallback(
-    async (skill: ManagedSkill) => {
-      await skillActions.handleDeleteManaged(skill, () =>
-        setPendingDeleteId(null),
-      );
-    },
-    [skillActions, setPendingDeleteId],
-  );
+  const handleDeleteManaged = async (skill: ManagedSkill) => {
+    await skillActions.handleDeleteManaged(skill, () =>
+      setPendingDeleteId(null),
+    );
+  };
 
-  // Sync all managed to tools
-  const handleSyncAllManagedToTools = useCallback(
-    async (toolIds: string[]) => {
-      await skillActions.handleSyncAllManagedToTools({
-        managedSkills,
-        toolIds,
-      });
-    },
-    [managedSkills, skillActions],
-  );
+  const handleSyncAllManagedToTools = async (toolIds: string[]) => {
+    await skillActions.handleSyncAllManagedToTools({
+      managedSkills,
+      toolIds,
+    });
+  };
 
-  // Sync new tools
-  const handleSyncAllNewTools = useCallback(() => {
+  const handleSyncAllNewTools = () => {
     if (!toolStatus) return;
     setSyncTargets((prev) => {
       const next = { ...prev };
@@ -863,56 +768,38 @@ function App() {
     });
     setShowNewToolsModal(false);
     void handleSyncAllManagedToTools(toolStatus.newly_installed);
-  }, [
-    handleSyncAllManagedToTools,
-    sharedToolIdsByToolId,
-    toolStatus,
-    setShowNewToolsModal,
-  ]);
+  };
 
-  // Toggle tool for skill
-  const handleToggleToolForSkill = useCallback(
-    (skill: ManagedSkill, toolId: string) => {
-      void skillActions.handleToggleToolForSkill({
-        skill,
-        toolId,
-        loading,
-        onSharedToggle: (s, t) =>
-          setPendingSharedToggle({ skill: s, toolId: t }),
-      });
-    },
-    [loading, skillActions, setPendingSharedToggle],
-  );
+  const handleToggleToolForSkill = (skill: ManagedSkill, toolId: string) => {
+    void skillActions.handleToggleToolForSkill({
+      skill,
+      toolId,
+      loading,
+      onSharedToggle: (s, t) =>
+        setPendingSharedToggle({ skill: s, toolId: t }),
+    });
+  };
 
-  // Update managed skill
-  const handleUpdateManaged = useCallback(
-    async (skill: ManagedSkill) => {
-      await skillActions.handleUpdateManaged(skill);
-    },
-    [skillActions],
-  );
+  const handleUpdateManaged = async (skill: ManagedSkill) => {
+    await skillActions.handleUpdateManaged(skill);
+  };
 
-  const handleUpdateSkill = useCallback(
-    (skill: ManagedSkill) => {
-      void handleUpdateManaged(skill);
-    },
-    [handleUpdateManaged],
-  );
+  const handleUpdateSkill = (skill: ManagedSkill) => {
+    void handleUpdateManaged(skill);
+  };
 
-  // Shared confirm
-  const handleSharedConfirm = useCallback(() => {
+  const handleSharedConfirm = () => {
     if (!pendingSharedToggle) return;
     const payload = pendingSharedToggle;
     setPendingSharedToggle(null);
     void skillActions.runToggleToolForSkill(payload.skill, payload.toolId);
-  }, [pendingSharedToggle, setPendingSharedToggle, skillActions]);
+  };
 
-  // Update handlers
-  const handleDismissUpdate = useCallback(() => {
+  const handleDismissUpdate = () => {
     setUpdateModalVersion(null);
-  }, []);
+  };
 
-  const handleDismissUpdateForever = useCallback(() => {
+  const handleDismissUpdateForever = () => {
     if (updateAvailableVersion) {
       localStorage.setItem(
         "skills-ignored-update-version",
@@ -921,9 +808,9 @@ function App() {
       setIgnoredUpdateVersion(updateAvailableVersion);
     }
     setUpdateModalVersion(null);
-  }, [updateAvailableVersion]);
+  };
 
-  const handleUpdateNow = useCallback(async () => {
+  const handleUpdateNow = async () => {
     const update = updateObjRef.current;
     if (!update) return;
     setUpdateInstalling(true);
@@ -938,7 +825,7 @@ function App() {
       setUpdateError(message);
       toast.error(message, { duration: 3200 });
     }
-  }, []);
+  };
 
   // Render
   return (
