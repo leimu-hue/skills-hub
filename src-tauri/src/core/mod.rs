@@ -14,3 +14,14 @@ pub mod skills_search;
 pub mod sync_engine;
 pub mod temp_cleanup;
 pub mod tool_adapters;
+
+use std::time::{SystemTime, UNIX_EPOCH};
+
+pub const IGNORE_NAMES: &[&str] = &[".git", ".DS_Store", "Thumbs.db", ".gitignore"];
+
+pub fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64
+}

@@ -108,7 +108,7 @@ fn git_fetch_timeout() -> Duration {
 
 static GIT_BIN: OnceLock<Option<String>> = OnceLock::new();
 
-fn resolve_git_bin() -> Option<String> {
+fn resolve_git_bin() -> Option<&'static str> {
     GIT_BIN
         .get_or_init(|| {
             // Allow overriding from environment for debugging / enterprise setups.
@@ -143,7 +143,8 @@ fn resolve_git_bin() -> Option<String> {
             log::warn!("[git_fetcher] no usable git binary found");
             None
         })
-        .clone()
+        .as_ref()
+        .map(|s| s.as_str())
 }
 
 fn git_bin_works(bin: &str) -> bool {
@@ -158,7 +159,7 @@ fn git_bin_works(bin: &str) -> bool {
 }
 
 fn git_cmd() -> Command {
-    let bin = resolve_git_bin().unwrap_or_else(|| "git".to_string());
+    let bin = resolve_git_bin().unwrap_or("git");
     let mut cmd = Command::new(bin);
     // Never block on interactive auth prompts inside a GUI app.
     cmd.env("GIT_TERMINAL_PROMPT", "0")

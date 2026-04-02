@@ -3,7 +3,8 @@ use std::path::Path;
 use anyhow::{bail, Context, Result};
 use walkdir::{DirEntry, WalkDir};
 
-const IGNORE_NAMES: [&str; 4] = [".git", ".DS_Store", "Thumbs.db", ".gitignore"];
+use super::IGNORE_NAMES;
+
 const MAX_FILE_SIZE: u64 = 1_048_576; // 1 MB
 
 fn is_ignored(entry: &DirEntry) -> bool {

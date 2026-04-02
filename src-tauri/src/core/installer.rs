@@ -12,6 +12,7 @@ use super::central_repo::{ensure_central_repo, resolve_central_repo_path};
 use super::content_hash::hash_dir;
 use super::git_fetcher::clone_or_pull;
 use super::github_download::{download_github_directory, parse_github_api_params};
+use super::now_ms;
 use super::skill_store::{SkillRecord, SkillStore};
 use super::sync_engine::copy_dir_recursive;
 use super::sync_engine::sync_dir_copy_with_overwrite;
@@ -401,13 +402,6 @@ fn looks_like_github_shorthand(input: &str) -> bool {
     } else {
         true
     }
-}
-
-fn now_ms() -> i64 {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        .unwrap_or_default();
-    now.as_millis() as i64
 }
 
 fn derive_name_from_repo_url(repo_url: &str) -> String {

@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use anyhow::{Context, Result};
 
@@ -413,19 +415,41 @@ pub fn default_tool_adapters() -> Vec<ToolAdapter> {
     ]
 }
 
+static ADAPTERS_BY_KEY: OnceLock<HashMap<String, ToolAdapter>> = OnceLock::new();
+static ADAPTERS_BY_SKILLS_DIR: OnceLock<HashMap<&'static str, Vec<ToolAdapter>>> = OnceLock::new();
+
+fn cached_adapters_by_key() -> &'static HashMap<String, ToolAdapter> {
+    ADAPTERS_BY_KEY.get_or_init(|| {
+        default_tool_adapters()
+            .into_iter()
+            .map(|a| (a.id.as_key().to_string(), a))
+            .collect()
+    })
+}
+
+fn cached_adapters_by_skills_dir() -> &'static HashMap<&'static str, Vec<ToolAdapter>> {
+    ADAPTERS_BY_SKILLS_DIR.get_or_init(|| {
+        let mut map: HashMap<&str, Vec<ToolAdapter>> = HashMap::new();
+        for adapter in default_tool_adapters() {
+            map.entry(adapter.relative_skills_dir)
+                .or_default()
+                .push(adapter);
+        }
+        map
+    })
+}
+
 /// Tools can share the same global skills directory (e.g. Amp and Kimi Code CLI).
 /// Use this to coordinate UI warnings and avoid duplicate filesystem operations.
 pub fn adapters_sharing_skills_dir(adapter: &ToolAdapter) -> Vec<ToolAdapter> {
-    default_tool_adapters()
-        .into_iter()
-        .filter(|a| a.relative_skills_dir == adapter.relative_skills_dir)
-        .collect()
+    cached_adapters_by_skills_dir()
+        .get(adapter.relative_skills_dir)
+        .cloned()
+        .unwrap_or_default()
 }
 
 pub fn adapter_by_key(key: &str) -> Option<ToolAdapter> {
-    default_tool_adapters()
-        .into_iter()
-        .find(|adapter| adapter.id.as_key() == key)
+    cached_adapters_by_key().get(key).cloned()
 }
 
 pub fn resolve_default_path(adapter: &ToolAdapter) -> Result<PathBuf> {

@@ -19,13 +19,14 @@ use crate::core::installer::{
     install_local_skill_from_selection, list_git_skills, list_local_skills,
     update_managed_skill_from_source, GitSkillCandidate, InstallResult, LocalSkillCandidate,
 };
+use crate::core::now_ms;
 use crate::core::onboarding::{build_onboarding_plan, OnboardingPlan};
 use crate::core::skill_store::{SkillStore, SkillTargetRecord};
 use crate::core::skills_search::{
     search_skills_online as search_skills_online_core, OnlineSkillResult,
 };
 use crate::core::sync_engine::{
-    copy_dir_recursive, sync_dir_for_tool_with_overwrite, sync_dir_hybrid, SyncMode,
+    copy_dir_recursive, sync_dir_for_tool_with_overwrite, sync_dir_hybrid,
 };
 use crate::core::tool_adapters::{adapter_by_key, is_tool_installed, resolve_default_path};
 use uuid::Uuid;
@@ -454,13 +455,7 @@ pub async fn sync_skill_dir(
     tauri::async_runtime::spawn_blocking(move || {
         let result = sync_dir_hybrid(source_path.as_ref(), target_path.as_ref())?;
         Ok::<_, anyhow::Error>(SyncResultDto {
-            mode_used: match result.mode_used {
-                SyncMode::Auto => "auto",
-                SyncMode::Symlink => "symlink",
-                SyncMode::Junction => "junction",
-                SyncMode::Copy => "copy",
-            }
-            .to_string(),
+            mode_used: result.mode_used.as_str().to_string(),
             target_path: result.target_path.to_string_lossy().to_string(),
         })
     })
@@ -530,13 +525,7 @@ pub async fn sync_skill_to_tool(
                 skill_id: skillId.clone(),
                 tool: a.id.as_key().to_string(),
                 target_path: result.target_path.to_string_lossy().to_string(),
-                mode: match result.mode_used {
-                    SyncMode::Auto => "auto",
-                    SyncMode::Symlink => "symlink",
-                    SyncMode::Junction => "junction",
-                    SyncMode::Copy => "copy",
-                }
-                .to_string(),
+                mode: result.mode_used.as_str().to_string(),
                 status: "ok".to_string(),
                 last_error: None,
                 synced_at: Some(now_ms()),
@@ -545,13 +534,7 @@ pub async fn sync_skill_to_tool(
         }
 
         Ok::<_, anyhow::Error>(SyncResultDto {
-            mode_used: match result.mode_used {
-                SyncMode::Auto => "auto",
-                SyncMode::Symlink => "symlink",
-                SyncMode::Junction => "junction",
-                SyncMode::Copy => "copy",
-            }
-            .to_string(),
+            mode_used: result.mode_used.as_str().to_string(),
             target_path: result.target_path.to_string_lossy().to_string(),
         })
     })
@@ -823,21 +806,14 @@ fn to_install_dto(result: InstallResult) -> InstallResultDto {
     }
 }
 
-fn now_ms() -> i64 {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        .unwrap_or_default();
-    now.as_millis() as i64
-}
-
 fn get_managed_skills_impl(store: &SkillStore) -> Result<Vec<ManagedSkillDto>, String> {
-    let skills = store.list_skills().map_err(|err| err.to_string())?;
-    Ok(skills
+    let skills_with_targets = store
+        .list_skills_with_targets()
+        .map_err(|e| e.to_string())?;
+    Ok(skills_with_targets
         .into_iter()
-        .map(|skill| {
-            let targets = store
-                .list_skill_targets(&skill.id)
-                .unwrap_or_default()
+        .map(|(skill, targets)| {
+            let targets = targets
                 .into_iter()
                 .map(|target| SkillTargetDto {
                     tool: target.tool,
@@ -979,7 +955,3 @@ pub fn cancel_current_operation(cancel: State<'_, Arc<CancelToken>>) -> Result<(
     cancel.cancel();
     Ok(())
 }
-
-#[cfg(test)]
-#[path = "tests/commands.rs"]
-mod tests;

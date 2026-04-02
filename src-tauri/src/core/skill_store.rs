@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection};
@@ -60,9 +61,18 @@ CREATE INDEX IF NOT EXISTS idx_skills_name ON skills(name);
 CREATE INDEX IF NOT EXISTS idx_skills_updated_at ON skills(updated_at);
 "#;
 
-#[derive(Clone, Debug)]
 pub struct SkillStore {
     db_path: PathBuf,
+    conn: Mutex<Option<Connection>>,
+}
+
+impl Clone for SkillStore {
+    fn clone(&self) -> Self {
+        Self {
+            db_path: self.db_path.clone(),
+            conn: Mutex::new(None),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -97,7 +107,10 @@ pub struct SkillTargetRecord {
 
 impl SkillStore {
     pub fn new(db_path: PathBuf) -> Self {
-        Self { db_path }
+        Self {
+            db_path,
+            conn: Mutex::new(None),
+        }
     }
 
     #[allow(dead_code)]
@@ -239,6 +252,86 @@ impl SkillStore {
                 ],
             )?;
             Ok(())
+        })
+    }
+
+    pub fn list_skills_with_targets(&self) -> Result<Vec<(SkillRecord, Vec<SkillTargetRecord>)>> {
+        self.with_conn(|conn| {
+            let mut skills_stmt = conn.prepare(
+                "SELECT id, name, description, source_type, source_ref, source_subpath, source_revision, central_path, content_hash,
+                 created_at, updated_at, last_sync_at, last_seen_at, status
+                 FROM skills
+                 ORDER BY updated_at DESC",
+            )?;
+
+            let skill_rows = skills_stmt.query_map([], |row| {
+                Ok(SkillRecord {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    source_type: row.get(3)?,
+                    source_ref: row.get(4)?,
+                    source_subpath: row.get(5)?,
+                    source_revision: row.get(6)?,
+                    central_path: row.get(7)?,
+                    content_hash: row.get(8)?,
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
+                    last_sync_at: row.get(11)?,
+                    last_seen_at: row.get(12)?,
+                    status: row.get(13)?,
+                })
+            })?;
+
+            let mut skills: Vec<SkillRecord> = Vec::new();
+            for row in skill_rows {
+                skills.push(row?);
+            }
+
+            if skills.is_empty() {
+                return Ok(Vec::new());
+            }
+
+            let skill_ids: Vec<&str> = skills.iter().map(|s| s.id.as_str()).collect();
+            let placeholders: String = skill_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+            let query = format!(
+                "SELECT id, skill_id, tool, target_path, mode, status, last_error, synced_at
+                 FROM skill_targets
+                 WHERE skill_id IN ({})",
+                placeholders
+            );
+
+            let mut targets_stmt = conn.prepare(&query)?;
+            let target_rows =
+                targets_stmt.query_map(rusqlite::params_from_iter(skill_ids.iter()), |row| {
+                    Ok(SkillTargetRecord {
+                        id: row.get(0)?,
+                        skill_id: row.get(1)?,
+                        tool: row.get(2)?,
+                        target_path: row.get(3)?,
+                        mode: row.get(4)?,
+                        status: row.get(5)?,
+                        last_error: row.get(6)?,
+                        synced_at: row.get(7)?,
+                    })
+                })?;
+
+            let mut targets_map: std::collections::HashMap<String, Vec<SkillTargetRecord>> =
+                std::collections::HashMap::new();
+            for row in target_rows {
+                let target = row?;
+                targets_map.entry(target.skill_id.clone()).or_default().push(target);
+            }
+
+            let result: Vec<(SkillRecord, Vec<SkillTargetRecord>)> = skills
+                .into_iter()
+                .map(|skill| {
+                    let targets = targets_map.remove(&skill.id).unwrap_or_default();
+                    (skill, targets)
+                })
+                .collect();
+
+            Ok(result)
         })
     }
 
@@ -450,11 +543,15 @@ impl SkillStore {
     }
 
     fn with_conn<T>(&self, f: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
-        let conn = Connection::open(&self.db_path)
-            .with_context(|| format!("failed to open db at {:?}", self.db_path))?;
-        // Enforce foreign key constraints on every connection (rusqlite PRAGMA is per-connection).
-        conn.execute_batch("PRAGMA foreign_keys = ON;")?;
-        f(&conn)
+        let mut guard = self.conn.lock().unwrap();
+        if guard.is_none() {
+            let conn = Connection::open(&self.db_path)
+                .with_context(|| format!("failed to open db at {:?}", self.db_path))?;
+            conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+            *guard = Some(conn);
+        }
+        let conn = guard.as_ref().unwrap();
+        f(conn)
     }
 }
 

@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
 use walkdir::{DirEntry, WalkDir};
 
-const IGNORE_NAMES: [&str; 4] = [".git", ".DS_Store", "Thumbs.db", ".gitignore"];
+use super::IGNORE_NAMES;
 
 fn is_ignored(entry: &DirEntry) -> bool {
     let file_name = entry.file_name().to_string_lossy();

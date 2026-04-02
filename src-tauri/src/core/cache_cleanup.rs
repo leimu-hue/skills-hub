@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use tauri::Manager;
 
+use super::now_ms;
 use super::skill_store::SkillStore;
 
 const CACHE_DIR_NAME: &str = "skills-hub-git-cache";
@@ -143,11 +144,4 @@ fn parse_cache_ttl_secs(raw: Option<String>) -> Option<i64> {
     } else {
         Some(value)
     }
-}
-
-fn now_ms() -> i64 {
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default();
-    now.as_millis() as i64
 }
