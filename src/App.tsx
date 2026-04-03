@@ -887,6 +887,8 @@ function App() {
               getSkillSourceLabel={getSkillSourceLabel}
               formatRelative={formatRelative}
               onReviewImport={handleReviewImport}
+              onAddSkill={handleOpenAdd}
+              onExplore={() => handleViewChange('explore')}
               onUpdateSkill={handleUpdateSkill}
               onDeleteSkill={handleDeletePrompt}
               onToggleTool={handleToggleToolForSkill}

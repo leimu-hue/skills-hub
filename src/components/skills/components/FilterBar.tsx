@@ -25,7 +25,7 @@ const FilterBar = ({
     <div className="filter-bar">
       <div className="filter-title">{t('allSkills')}</div>
       <div className="filter-actions">
-        <div className="btn btn-secondary sort-btn" role="group">
+        <div className="sort-btn" role="group">
           <span className="sort-label">{t('filterSort')}:</span>
           <ArrowUpDown size={12} />
           <select

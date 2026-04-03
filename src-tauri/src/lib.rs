@@ -76,6 +76,7 @@ pub fn run() {
             commands::get_git_cache_ttl_secs,
             commands::set_git_cache_cleanup_days,
             commands::set_git_cache_ttl_secs,
+            commands::close_splashscreen,
             commands::clear_git_cache_now,
             commands::get_onboarding_plan,
             commands::install_local,

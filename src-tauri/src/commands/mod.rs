@@ -64,6 +64,7 @@ fn format_anyhow_error(err: anyhow::Error) -> String {
 
 mod cache_cmds;
 mod central_repo_cmds;
+mod close_splashscreen_cmds;
 mod explore_cmds;
 mod github_cmds;
 mod managed_skills_cmds;
@@ -74,6 +75,7 @@ mod sync_cmds;
 
 pub use cache_cmds::*;
 pub use central_repo_cmds::*;
+pub use close_splashscreen_cmds::*;
 pub use explore_cmds::*;
 pub use github_cmds::*;
 pub use managed_skills_cmds::*;

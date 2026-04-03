@@ -1,35 +1,35 @@
-import { useEffect, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
-import type { TFunction } from 'i18next'
+import { useEffect, useState } from "react";
+import { ArrowLeft } from "lucide-react";
+import type { TFunction } from "i18next";
 import {
   canCheckForUpdatesAgain,
   type UpdateViewState,
-} from '../../../logic/updateViewState'
+} from "../../../logic/updateViewState";
 
 type SettingsPageProps = {
-  isTauri: boolean
-  language: string
-  storagePath: string
-  gitCacheCleanupDays: number
-  gitCacheTtlSecs: number
-  themePreference: 'system' | 'light' | 'dark'
-  githubToken: string
-  onPickStoragePath: () => void
-  onToggleLanguage: () => void
-  onThemeChange: (nextTheme: 'system' | 'light' | 'dark') => void
-  onGitCacheCleanupDaysChange: (nextDays: number) => void
-  onGitCacheTtlSecsChange: (nextSecs: number) => void
-  onClearGitCacheNow: () => void
-  onGithubTokenChange: (token: string) => void
-  appVersion: string | null
-  updateViewState: UpdateViewState
-  updateVersion: string | null
-  updateError: string | null
-  onCheckForUpdates: () => void
-  onInstallUpdate: () => void
-  onBack: () => void
-  t: TFunction
-}
+  isTauri: boolean;
+  language: string;
+  storagePath: string;
+  gitCacheCleanupDays: number;
+  gitCacheTtlSecs: number;
+  themePreference: "system" | "light" | "dark";
+  githubToken: string;
+  onPickStoragePath: () => void;
+  onToggleLanguage: () => void;
+  onThemeChange: (nextTheme: "system" | "light" | "dark") => void;
+  onGitCacheCleanupDaysChange: (nextDays: number) => void;
+  onGitCacheTtlSecsChange: (nextSecs: number) => void;
+  onClearGitCacheNow: () => void;
+  onGithubTokenChange: (token: string) => void;
+  appVersion: string | null;
+  updateViewState: UpdateViewState;
+  updateVersion: string | null;
+  updateError: string | null;
+  onCheckForUpdates: () => void;
+  onInstallUpdate: () => void;
+  onBack: () => void;
+  t: TFunction;
+};
 
 const SettingsPage = ({
   isTauri,
@@ -55,30 +55,30 @@ const SettingsPage = ({
   onBack,
   t,
 }: SettingsPageProps) => {
-  const [localToken, setLocalToken] = useState(githubToken)
+  const [localToken, setLocalToken] = useState(githubToken);
   useEffect(() => {
-    setLocalToken(githubToken)
-  }, [githubToken])
+    setLocalToken(githubToken);
+  }, [githubToken]);
 
   const versionText = (() => {
-    if (!isTauri) return t('notAvailable')
-    if (!appVersion) return t('unknown')
-    return `v${appVersion}`
-  })()
+    if (!isTauri) return t("notAvailable");
+    if (!appVersion) return t("unknown");
+    return `v${appVersion}`;
+  })();
 
   return (
     <div className="settings-page">
       <div className="detail-header">
         <button className="detail-back-btn" type="button" onClick={onBack}>
           <ArrowLeft size={16} />
-          {t('detail.back')}
+          {t("detail.back")}
         </button>
-        <div className="detail-skill-name">{t('settings')}</div>
+        <div className="detail-skill-name">{t("settings")}</div>
       </div>
       <div className="settings-page-body">
         <div className="settings-field">
           <label className="settings-label" htmlFor="settings-language">
-            {t('interfaceLanguage')}
+            {t("interfaceLanguage")}
           </label>
           <div className="settings-select-wrap">
             <select
@@ -87,12 +87,12 @@ const SettingsPage = ({
               value={language}
               onChange={(event) => {
                 if (event.target.value !== language) {
-                  onToggleLanguage()
+                  onToggleLanguage();
                 }
               }}
             >
-              <option value="en">{t('languageOptions.en')}</option>
-              <option value="zh">{t('languageOptions.zh')}</option>
+              <option value="en">{t("languageOptions.en")}</option>
+              <option value="zh">{t("languageOptions.zh")}</option>
             </select>
             <svg
               className="settings-select-caret"
@@ -109,45 +109,49 @@ const SettingsPage = ({
 
         <div className="settings-field">
           <label className="settings-label" id="settings-theme-label">
-            {t('themeMode')}
+            {t("themeMode")}
           </label>
-          <div className="settings-theme-options" role="group" aria-labelledby="settings-theme-label">
+          <div
+            className="settings-theme-options"
+            role="group"
+            aria-labelledby="settings-theme-label"
+          >
             <button
               type="button"
               className={`settings-theme-btn ${
-                themePreference === 'system' ? 'active' : ''
+                themePreference === "system" ? "active" : ""
               }`}
-              aria-pressed={themePreference === 'system'}
-              onClick={() => onThemeChange('system')}
+              aria-pressed={themePreference === "system"}
+              onClick={() => onThemeChange("system")}
             >
-              {t('themeOptions.system')}
+              {t("themeOptions.system")}
             </button>
             <button
               type="button"
               className={`settings-theme-btn ${
-                themePreference === 'light' ? 'active' : ''
+                themePreference === "light" ? "active" : ""
               }`}
-              aria-pressed={themePreference === 'light'}
-              onClick={() => onThemeChange('light')}
+              aria-pressed={themePreference === "light"}
+              onClick={() => onThemeChange("light")}
             >
-              {t('themeOptions.light')}
+              {t("themeOptions.light")}
             </button>
             <button
               type="button"
               className={`settings-theme-btn ${
-                themePreference === 'dark' ? 'active' : ''
+                themePreference === "dark" ? "active" : ""
               }`}
-              aria-pressed={themePreference === 'dark'}
-              onClick={() => onThemeChange('dark')}
+              aria-pressed={themePreference === "dark"}
+              onClick={() => onThemeChange("dark")}
             >
-              {t('themeOptions.dark')}
+              {t("themeOptions.dark")}
             </button>
           </div>
         </div>
 
         <div className="settings-field">
           <label className="settings-label" htmlFor="settings-storage">
-            {t('skillsStoragePath')}
+            {t("skillsStoragePath")}
           </label>
           <div className="settings-input-row">
             <input
@@ -161,15 +165,15 @@ const SettingsPage = ({
               type="button"
               onClick={onPickStoragePath}
             >
-              {t('browse')}
+              {t("browse")}
             </button>
           </div>
-          <div className="settings-helper">{t('skillsStorageHint')}</div>
+          <div className="settings-helper">{t("skillsStorageHint")}</div>
         </div>
 
         <div className="settings-field">
           <label className="settings-label" htmlFor="settings-git-cache-days">
-            {t('gitCacheCleanupDays')}
+            {t("gitCacheCleanupDays")}
           </label>
           <div className="settings-input-row">
             <input
@@ -181,9 +185,9 @@ const SettingsPage = ({
               step={1}
               value={gitCacheCleanupDays}
               onChange={(event) => {
-                const next = Number(event.target.value)
+                const next = Number(event.target.value);
                 if (!Number.isNaN(next)) {
-                  onGitCacheCleanupDaysChange(next)
+                  onGitCacheCleanupDaysChange(next);
                 }
               }}
             />
@@ -192,15 +196,15 @@ const SettingsPage = ({
               type="button"
               onClick={onClearGitCacheNow}
             >
-              {t('cleanNow')}
+              {t("cleanNow")}
             </button>
           </div>
-          <div className="settings-helper">{t('gitCacheCleanupHint')}</div>
+          <div className="settings-helper">{t("gitCacheCleanupHint")}</div>
         </div>
 
         <div className="settings-field">
           <label className="settings-label" htmlFor="settings-git-cache-ttl">
-            {t('gitCacheTtlSecs')}
+            {t("gitCacheTtlSecs")}
           </label>
           <div className="settings-input-row">
             <input
@@ -212,43 +216,43 @@ const SettingsPage = ({
               step={1}
               value={gitCacheTtlSecs}
               onChange={(event) => {
-                const next = Number(event.target.value)
+                const next = Number(event.target.value);
                 if (!Number.isNaN(next)) {
-                  onGitCacheTtlSecsChange(next)
+                  onGitCacheTtlSecsChange(next);
                 }
               }}
             />
           </div>
-          <div className="settings-helper">{t('gitCacheTtlHint')}</div>
+          <div className="settings-helper">{t("gitCacheTtlHint")}</div>
         </div>
 
         <div className="settings-field">
           <label className="settings-label" htmlFor="settings-github-token">
-            {t('githubToken')}
+            {t("githubToken")}
           </label>
           <div className="settings-input-row">
             <input
               id="settings-github-token"
               className="settings-input mono"
               type="password"
-              placeholder={t('githubTokenPlaceholder')}
+              placeholder={t("githubTokenPlaceholder")}
               value={localToken}
               onChange={(e) => setLocalToken(e.target.value)}
               onBlur={() => {
                 if (localToken !== githubToken) {
-                  onGithubTokenChange(localToken)
+                  onGithubTokenChange(localToken);
                 }
               }}
             />
           </div>
-          <div className="settings-helper">{t('githubTokenHint')}</div>
+          <div className="settings-helper">{t("githubTokenHint")}</div>
         </div>
 
         <div className="settings-field settings-update-section">
-          <label className="settings-label">{t('appUpdates')}</label>
+          <label className="settings-label">{t("appUpdates")}</label>
           <div className="settings-version-row">
             <span className="settings-version-text">
-              {t('appName')} {versionText}
+              {t("appName")} {versionText}
             </span>
             {isTauri && canCheckForUpdatesAgain(updateViewState) && (
               <button
@@ -256,35 +260,45 @@ const SettingsPage = ({
                 type="button"
                 onClick={onCheckForUpdates}
               >
-                {t('checkForUpdates')}
+                {t("checkForUpdates")}
               </button>
             )}
-            {updateViewState === 'checking' && (
-              <span className="settings-update-status">{t('checkingUpdates')}</span>
+            {updateViewState === "checking" && (
+              <span className="settings-update-status">
+                {t("checkingUpdates")}
+              </span>
             )}
-            {updateViewState === 'up-to-date' && (
-              <span className="settings-update-status settings-update-ok">{t('updateNotAvailable')}</span>
+            {updateViewState === "up-to-date" && (
+              <span className="settings-update-status settings-update-ok">
+                {t("updateNotAvailable")}
+              </span>
             )}
           </div>
-          {updateViewState === 'available' && updateVersion && (
+          {updateViewState === "available" && updateVersion && (
             <div className="settings-update-available">
-              <span>{t('updateAvailableWithVersion', { version: updateVersion })}</span>
+              <span>
+                {t("updateAvailableWithVersion", { version: updateVersion })}
+              </span>
               <button
                 className="btn btn-primary btn-sm"
                 type="button"
                 onClick={onInstallUpdate}
               >
-                {t('downloadAndInstall')}
+                {t("downloadAndInstall")}
               </button>
             </div>
           )}
-          {updateViewState === 'installing' && (
-            <div className="settings-update-status">{t('installingUpdate')}</div>
+          {updateViewState === "installing" && (
+            <div className="settings-update-status">
+              {t("installingUpdate")}
+            </div>
           )}
-          {updateViewState === 'done' && (
-            <div className="settings-update-ok">{t('updateInstalledRestart')}</div>
+          {updateViewState === "done" && (
+            <div className="settings-update-ok">
+              {t("updateInstalledRestart")}
+            </div>
           )}
-          {updateViewState === 'error' && (
+          {updateViewState === "error" && (
             <div className="settings-update-error">
               <span>{updateError}</span>
               <button
@@ -292,16 +306,15 @@ const SettingsPage = ({
                 type="button"
                 onClick={onCheckForUpdates}
               >
-                {t('checkForUpdates')}
+                {t("checkForUpdates")}
               </button>
             </div>
           )}
-          <div className="settings-helper">{t('updateHint')}</div>
+          <div className="settings-helper">{t("updateHint")}</div>
         </div>
-
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default SettingsPage
+export default SettingsPage;

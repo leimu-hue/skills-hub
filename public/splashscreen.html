@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Skills Hub</title>
+        <style>
+            /* Splash screen - prevents white flash during Tauri initialization */
+            .splash-screen {
+                position: fixed;
+                inset: 0;
+                z-index: 9999;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 20px;
+                background: #0b0f1a;
+                transition:
+                    opacity 0.4s ease-out,
+                    visibility 0.4s ease-out;
+            }
+
+            .splash-screen.hidden {
+                opacity: 0;
+                visibility: hidden;
+                pointer-events: none;
+            }
+
+            .splash-logo {
+                width: 64px;
+                height: 64px;
+                border-radius: 16px;
+                background: linear-gradient(
+                    135deg,
+                    #2563eb 0%,
+                    #9333ea 50%,
+                    #ea580c 100%
+                );
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 8px 32px -8px rgba(37, 99, 235, 0.4);
+                animation: pulse-glow 2s ease-in-out infinite;
+            }
+
+            .splash-logo svg {
+                width: 36px;
+                height: 36px;
+                color: white;
+            }
+
+            .splash-brand {
+                font-size: 20px;
+                font-weight: 700;
+                letter-spacing: -0.03em;
+                background: linear-gradient(
+                    to right,
+                    #2563eb,
+                    #9333ea,
+                    #ea580c
+                );
+                background-clip: text;
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+            }
+
+            .splash-spinner {
+                width: 24px;
+                height: 24px;
+                border: 2px solid rgba(255, 255, 255, 0.1);
+                border-top-color: #38bdf8;
+                border-radius: 50%;
+                animation: spin 0.9s linear infinite;
+            }
+
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            @keyframes pulse-glow {
+                0%,
+                100% {
+                    box-shadow: 0 8px 32px -8px rgba(37, 99, 235, 0.4);
+                }
+                50% {
+                    box-shadow: 0 8px 40px -4px rgba(37, 99, 235, 0.6);
+                }
+            }
+
+            /* Hide content until React mounts */
+            #root {
+                opacity: 0;
+                transition: opacity 0.3s ease-in;
+            }
+
+            #root.mounted {
+                opacity: 1;
+            }
+        </style>
+    </head>
+    <body>
+        <!-- Splash screen for Tauri startup -->
+        <div class="splash-screen" id="splash-screen">
+            <div class="splash-logo">
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                    <polyline points="2 17 12 22 22 17"></polyline>
+                    <polyline points="2 12 12 17 22 12"></polyline>
+                </svg>
+            </div>
+            <div class="splash-brand">Skills Hub</div>
+            <div class="splash-spinner"></div>
+        </div>
+        <div id="root"></div>
+    </body>
+</html>
