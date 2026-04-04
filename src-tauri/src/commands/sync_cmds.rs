@@ -4,7 +4,7 @@ use tauri::State;
 use crate::core::now_ms;
 use crate::core::skill_store::{SkillStore, SkillTargetRecord};
 use crate::core::sync_engine::{sync_dir_for_tool_with_overwrite, sync_dir_hybrid};
-use crate::core::tool_adapters::{adapter_by_key, is_tool_installed, resolve_default_path};
+use crate::core::tool::{adapter_by_key, is_tool_installed, resolve_default_path};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
@@ -79,7 +79,7 @@ pub async fn sync_skill_to_tool(
                     }
                 })?;
 
-        let group = crate::core::tool_adapters::adapters_sharing_skills_dir(&adapter);
+        let group = crate::core::tool::adapters_sharing_skills_dir(&adapter);
         for a in group {
             if !is_tool_installed(&a)? {
                 continue;
@@ -117,7 +117,7 @@ pub async fn unsync_skill_from_tool(
     let store = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let group_tool_keys: Vec<String> = if let Some(adapter) = adapter_by_key(&tool) {
-            let group = crate::core::tool_adapters::adapters_sharing_skills_dir(&adapter);
+            let group = crate::core::tool::adapters_sharing_skills_dir(&adapter);
             let mut any_installed = false;
             for a in &group {
                 if is_tool_installed(a)? {
